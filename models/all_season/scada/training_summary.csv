@@ -1,0 +1,11 @@
+dss_id,dss_name,family,target,granularity,n_samples,n_features,cv_mae_mean,holdout_mae,holdout_rmse,holdout_r2,trained_at,season,season_months,feature_cols,train_rows,test_rows,mae,rmse,r2,mae_mwh,rmse_mwh
+DSS00011,Rajpimpri Solar 132kV,all_season_scada,SCADA_POWER_MW,15min,140695,34.0,0.2181,0.0163,0.0365,1.0,2026-05-27T17:20:46.081724,,,,,,,,,,
+DSS00015,Five Star MIDC 220kV,all_season_scada,SCADA_POWER_MW,15min,140695,34.0,0.1239,0.029,0.0804,0.9951,2026-05-27T17:21:12.014063,,,,,,,,,,
+DSS00016,Karjat 132kV,all_season_scada,SCADA_POWER_MW,15min,140695,34.0,0.0,0.0,0.0,0.0,2026-05-27T17:21:47.681701,,,,,,,,,,
+DSS00017,New MIDC Jalgaon 132kV,all_season_scada,SCADA_POWER_MW,15min,140695,34.0,0.0027,0.0028,0.0063,1.0,2026-05-27T17:22:38.139179,,,,,,,,,,
+DSS00018,Mohol 132kV,all_season_scada,SCADA_POWER_MW,15min,140695,34.0,0.212,0.2099,0.6078,0.9625,2026-05-27T17:23:03.415297,,,,,,,,,,
+DSS00019,Kharda 132kV,all_season_scada,SCADA_POWER_MW,15min,140695,34.0,0.0079,0.0026,0.009,0.9999,2026-05-27T17:23:47.834001,,,,,,,,,,
+DSS00020,Walwhan 132kV,all_season_scada,SCADA_POWER_MW,15min,140695,34.0,0.0151,0.0209,0.3667,0.9932,2026-05-27T17:24:29.486309,,,,,,,,,,
+DSS00021,Karajgi 132kV,all_season_scada,SCADA_POWER_MW,15min,140695,34.0,0.0325,0.0289,0.0554,1.0,2026-05-27T17:25:22.933331,,,,,,,,,,
+DSS00035,Mahtargaon 132kV,all_season_scada,SCADA_POWER_MW,15min,140695,34.0,0.0413,0.0027,0.0274,1.0,2026-05-27T17:26:16.776666,,,,,,,,,,
+DSS00037,Mograle 132kV,all_season_scada,SCADA_POWER_MW,15min,140695,34.0,0.0482,0.0735,0.2073,0.9998,2026-05-27T17:27:01.676249,,,,,,,,,,

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SCADA 5-Minute Data Report</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+    <style>
+        /* Shared App Styling */
+        *{box-sizing:border-box;margin:0;padding:0;}
+        .app{display:flex;min-height:100vh;background:#f4f6f8;overflow:hidden;font-family:var(--font-sans, system-ui, -apple-system, sans-serif);}
+
+        /* Dark Sidebar */
+        .sidebar{width:172px;background:#111318;border-right:0.5px solid #2a2d36;padding:14px 0;flex-shrink:0;}
+        .slogo{display:flex;align-items:center;gap:8px;padding:0 12px 14px;border-bottom:0.5px solid #2a2d36;}
+        .slogo-icon{width:26px;height:26px;background:#0ea5e9;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+        .slogo-t{font-size:11px;font-weight:600;color:#e2e8f0;line-height:1.2;}
+        .slogo-s{font-size:9px;color:#6b7280;}
+        .nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#6b7280;cursor:pointer; text-decoration: none;}
+        .nav-item:hover{color:#cbd5e1;background:#1a1d25;}
+        .nav-item.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
+        .nav-item i{font-size:14px;}
+        .smeta{padding:10px 12px 0;border-top:0.5px solid #2a2d36;margin-top:10px;font-size:9px;color:#4b5563;line-height:1.7;}
+
+        /* Main Report Area */
+        .main{flex:1;padding:20px;overflow-y:auto; color: #111;}
+        h2 { margin-bottom: 20px; }
+        .controls { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #ddd; }
+        .controls h3 { margin-top: 0; font-size: 14px; margin-bottom: 8px; color: #444; }
+        .controls-row { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .controls-row:last-child { margin-bottom: 0; }
+
+        input { padding: 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 8px 14px; font-size: 13px; color: white; border: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 5px; font-weight: 500;}
+
+        .blue { background: #1976d2; } .blue:hover { background: #1565c0; }
+        .purple { background: #6a1b9a; } .purple:hover { background: #4a148c; }
+        .red-btn { background: #d32f2f; } .red-btn:hover { background: #c62828; }
+        .green-btn { background: #00897b; } .green-btn:hover { background: #00695c; }
+        .orange { background: #ef6c00; } .orange:hover { background: #e65100; }
+
+        .legend { margin-bottom: 15px; display: flex; gap: 10px; }
+        .box { display: inline-block; padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .green { background: #00b050; color: white; }
+        .yellow { background: yellow; color: black; }
+        .red { background: red; color: white; }
+
+        .summary { background: white; padding: 12px; border-radius: 6px; margin-bottom: 12px; font-size: 14px; border: 1px solid #ddd; }
+
+        .scroll { max-height: calc(100vh - 280px); overflow: auto; border: 1px solid #ccc; background: white; border-radius: 6px; }
+        table { border-collapse: collapse; font-size: 11px; width: 100%; }
+        th, td { border: 1px solid #eee; padding: 8px; text-align: center; min-width: 90px; }
+        th { position: sticky; top: 0; background: #111318; color: #e2e8f0; z-index: 2; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px; }
+        th:first-child, td:first-child { position: sticky; left: 0; background: #111318; color: #e2e8f0; z-index: 3; min-width: 150px; }
+        td:first-child { background: #f8fafc; color: #475569; font-weight: 600; }
+
+        .good { background: #c8e6c9; color: black; }
+        .medium { background: #fff9c4; color: black; }
+        .bad { background: #ffcdd2; color: black; }
+    
+    .submenu{display:none;flex-direction:column;background:#0d0f14;}
+    .submenu.open{display:flex;}
+    .subitem{display:flex;align-items:center;gap:8px;padding:7px 12px 7px 30px;font-size:11px;color:#6b7280;cursor:pointer;text-decoration:none;}
+    .subitem:hover{color:#cbd5e1;background:#1a1d25;}
+    .subitem.active{color:#38bdf8;}
+</style>
+</head>
+
+<body>
+<div class="app">
+    <div class="sidebar">
+    <div class="slogo">
+        <div class="slogo-icon"><i class="ti ti-bolt" style="color:#fff;font-size:13px" aria-hidden="true"></i></div>
+        <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
+    </div>
+    <div style="margin-top:10px;">
+  <div class="nav-item"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+  <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+  <div class="nav-item"><i class="ti ti-receipt-2"></i> Settlement</div>
+  <div class="nav-item"><i class="ti ti-database"></i> Data Entry</div>
+        <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+        <i class="ti ti-file-analytics"></i> Reports
+        <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="reports-sub"><div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
+        <div class="subitem active" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+        <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
+      </div>
+  <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+</div>
+    <div class="smeta">ISPL · Quenext · Solar · Wind<br>DA2 · R16 · NRMSE Engine v1</div>
+    </div>
+
+    <div class="main">
+        <h2>SCADA 5-Minute Data Report</h2>
+
+        <div class="controls">
+            <div class="controls-row">
+                <h3 style="margin:0; width: 120px;">Day-wise Report</h3>
+                <input type="date" id="reportDate">
+                <button class="blue" onclick="loadHeatmap()"><i class="ti ti-layout-grid"></i> Load Heatmap</button>
+                <button class="purple" onclick="loadMissingReport()"><i class="ti ti-file-report"></i> Missing Report</button>
+                <button class="red-btn" onclick="downloadDayPDF()"><i class="ti ti-file-type-pdf"></i> Download PDF</button>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+
+            <div class="controls-row">
+                <h3 style="margin:0; width: 120px;">Monthly Report</h3>
+                <input type="month" id="reportMonth">
+                <button class="green-btn" onclick="loadMonthlyReport()"><i class="ti ti-calendar-stats"></i> Monthly Report</button>
+                <button class="orange" onclick="downloadMonthlyPDF()"><i class="ti ti-file-type-pdf"></i> Download PDF</button>
+            </div>
+        </div>
+
+        <div class="legend">
+            <span class="box green">FULL DATA</span>
+            <span class="box yellow">PARTIAL DATA</span>
+            <span class="box red">NO DATA</span>
+        </div>
+
+        <div id="summary" class="summary" style="display:none;"></div>
+
+        <div class="scroll" id="tableBox" style="padding: 20px; color: #666;">
+            Please select date/month and click report button.
+        </div>
+    </div>
+</div>
+
+<script>
+// SCADA Scripts (Identical to your provided code)
+const API_BASE = "http://localhost:8000";
+
+function getDateValue() {
+    const date = document.getElementById("reportDate").value;
+    if (!date) { alert("Please select date"); return null; }
+    return date;
+}
+
+function getMonthValue() {
+    const month = document.getElementById("reportMonth").value;
+    if (!month) { alert("Please select month"); return null; }
+    return month;
+}
+
+async function loadHeatmap() {
+    const date = getDateValue();
+    if (!date) return;
+    document.getElementById("summary").style.display = "none";
+    document.getElementById("tableBox").innerHTML = "Loading heatmap...";
+    const url = `${API_BASE}/api/report?date=${encodeURIComponent(date)}`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        if (data.error) { document.getElementById("tableBox").innerHTML = data.error; return; }
+
+        document.getElementById("summary").style.display = "block";
+        document.getElementById("summary").innerHTML = `<b>Date:</b> ${data.date} | <b>Total Plants:</b> ${data.plants.length} | <b>Total Time Slots:</b> ${data.timestamps.length} | <b>DB Rows:</b> ${data.total_db_rows}`;
+
+        let html = "<table><tr><th>TIMESTAMP</th>";
+        data.plants.forEach(plant => { html += `<th>${plant}</th>`; });
+        html += "</tr>";
+
+        data.timestamps.forEach(ts => {
+            html += `<tr><td>${ts}</td>`;
+            data.plants.forEach(plant => {
+                const status = data.matrix[ts][plant];
+                if (status === "FULL") html += `<td class="green">FULL</td>`;
+                else if (status === "PARTIAL") html += `<td class="yellow">PARTIAL</td>`;
+                else html += `<td class="red">NO</td>`;
+            });
+            html += "</tr>";
+        });
+        html += "</table>";
+        document.getElementById("tableBox").innerHTML = html;
+    } catch (err) { document.getElementById("tableBox").innerHTML = err; }
+}
+
+async function loadMissingReport() {
+    const date = getDateValue();
+    if (!date) return;
+    document.getElementById("summary").style.display = "none";
+    document.getElementById("tableBox").innerHTML = "Loading missing report...";
+    const url = `${API_BASE}/api/missing-report?date=${encodeURIComponent(date)}`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        if (data.error) { document.getElementById("tableBox").innerHTML = data.error; return; }
+        renderMissingTable(data, "day");
+    } catch (err) { document.getElementById("tableBox").innerHTML = err; }
+}
+
+async function loadMonthlyReport() {
+    const month = getMonthValue();
+    if (!month) return;
+    document.getElementById("summary").style.display = "none";
+    document.getElementById("tableBox").innerHTML = "Loading monthly report...";
+    const url = `${API_BASE}/api/monthly-missing-report?month=${encodeURIComponent(month)}`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        if (data.error) { document.getElementById("tableBox").innerHTML = data.error; return; }
+        renderMissingTable(data, "month");
+    } catch (err) { document.getElementById("tableBox").innerHTML = err; }
+}
+
+function renderMissingTable(data, type) {
+    document.getElementById("summary").style.display = "block";
+    if (type === "day") {
+        document.getElementById("summary").innerHTML = `<b>Date:</b> ${data.date} | <b>Total Plants:</b> ${data.total_plants} | <b>Total Slots:</b> ${data.total_slots} | <b>DB Rows:</b> ${data.total_db_rows} | <b>Total Missing:</b> ${data.summary.TOTAL_MISSING}`;
+    } else {
+        document.getElementById("summary").innerHTML = `<b>Month:</b> ${data.month} | <b>From:</b> ${data.start_date} | <b>To:</b> ${data.end_date} | <b>Total Plants:</b> ${data.total_plants} | <b>Total Slots:</b> ${data.total_slots} | <b>DB Rows:</b> ${data.total_db_rows} | <b>Total Missing:</b> ${data.summary.TOTAL_MISSING}`;
+    }
+
+    let html = "<table><tr><th>DSS_ID</th><th>Total Slots</th><th>Full Count</th><th>Partial Count</th><th>Missing Count</th><th>Availability %</th><th>Missing %</th>";
+    if (type === "day") html += "<th>Missing Timestamps</th></tr>";
+    else html += "<th>Missing Days</th></tr>";
+
+    data.report.forEach(row => {
+        let cls = "good";
+        if (row.MISSING_PERCENT > 20) cls = "bad";
+        else if (row.MISSING_PERCENT > 0) cls = "medium";
+
+        html += `<tr><td>${row.DSS_ID}</td><td>${row.TOTAL_SLOTS}</td><td class="green">${row.FULL_COUNT}</td><td class="yellow">${row.PARTIAL_COUNT}</td><td class="${cls}">${row.MISSING_COUNT}</td><td>${row.AVAILABILITY_PERCENT}%</td><td>${row.MISSING_PERCENT}%</td>`;
+
+        if (type === "day") {
+            const missingText = row.MISSING_TIMESTAMPS.join(", ");
+            html += `<td style="text-align:left; min-width:500px;">${missingText}</td>`;
+        } else {
+            const missingDaysText = Object.entries(row.MISSING_DAYS).map(([day, count]) => `${day}: ${count}`).join(", ");
+            html += `<td style="text-align:left; min-width:500px;">${missingDaysText}</td>`;
+        }
+        html += "</tr>";
+    });
+    html += "</table>";
+    document.getElementById("tableBox").innerHTML = html;
+}
+
+function downloadDayPDF() {
+    const date = getDateValue();
+    if (!date) return;
+    window.open(`${API_BASE}/api/missing-report-pdf?date=${encodeURIComponent(date)}`, "_blank");
+}
+
+function downloadMonthlyPDF() {
+    const month = getMonthValue();
+    if (!month) return;
+    window.open(`${API_BASE}/api/monthly-missing-report-pdf?month=${encodeURIComponent(month)}`, "_blank");
+}
+</script>
+<script>
+  // Automatically highlight the current page in the sidebar
+  const currentPath = window.location.pathname.split("/").pop();
+  document.querySelectorAll('.nav-item').forEach(item => {
+    if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(currentPath)) {
+      item.classList.add('active');
+    }
+  });
+</script>
+
+<script>
+  function toggleReports(e){ if(e) e.stopPropagation(); var s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
+  (function(){var s=document.getElementById('reports-sub'); if(s && s.querySelector('.subitem.active')) s.classList.add('open');})();
+</script>
+</body>
+</html>

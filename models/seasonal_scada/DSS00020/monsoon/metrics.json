@@ -1,0 +1,33 @@
+{
+  "dss_id": "DSS00020",
+  "dss_name": "Walwhan 132kV",
+  "family": "seasonal_scada",
+  "season": "Monsoon",
+  "season_months": [
+    6,
+    7,
+    8,
+    9
+  ],
+  "target": "SCADA_POWER_MW",
+  "granularity": "15min",
+  "feature_cols": [
+    "ghi",
+    "dni",
+    "temp",
+    "wind",
+    "irr_ratio",
+    "temp_factor",
+    "wind_temp",
+    "sin_h",
+    "cos_h",
+    "day"
+  ],
+  "n_samples": 46848,
+  "train_rows": 37478,
+  "test_rows": 9370,
+  "mae": 2.4072,
+  "rmse": 4.2438,
+  "r2": 0.0784,
+  "trained_at": "2026-05-27T17:24:46.347768"
+}

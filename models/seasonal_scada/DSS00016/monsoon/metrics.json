@@ -1,0 +1,33 @@
+{
+  "dss_id": "DSS00016",
+  "dss_name": "Karjat 132kV",
+  "family": "seasonal_scada",
+  "season": "Monsoon",
+  "season_months": [
+    6,
+    7,
+    8,
+    9
+  ],
+  "target": "SCADA_POWER_MW",
+  "granularity": "15min",
+  "feature_cols": [
+    "ghi",
+    "dni",
+    "temp",
+    "wind",
+    "irr_ratio",
+    "temp_factor",
+    "wind_temp",
+    "sin_h",
+    "cos_h",
+    "day"
+  ],
+  "n_samples": 46848,
+  "train_rows": 37478,
+  "test_rows": 9370,
+  "mae": 0.0402,
+  "rmse": 0.0965,
+  "r2": 0.0,
+  "trained_at": "2026-05-27T17:22:05.420267"
+}

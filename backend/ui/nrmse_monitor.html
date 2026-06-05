@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NRMSE Monitor</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#0d0f14;color:#e2e8f0;font-family:var(--font-sans,system-ui,-apple-system,sans-serif);}
+    .app{display:flex;min-height:100vh;}
+
+    /* Sidebar */
+    .sidebar{width:172px;background:#111318;border-right:0.5px solid #2a2d36;padding:14px 0;flex-shrink:0;}
+    .slogo{display:flex;align-items:center;gap:8px;padding:0 12px 14px;border-bottom:0.5px solid #2a2d36;}
+    .slogo-icon{width:26px;height:26px;background:#0ea5e9;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+    .slogo-t{font-size:11px;font-weight:600;color:#e2e8f0;line-height:1.2;}
+    .slogo-s{font-size:9px;color:#6b7280;}
+    .nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#6b7280;cursor:pointer;text-decoration:none;}
+    .nav-item:hover{color:#cbd5e1;background:#1a1d25;}
+    .nav-item.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
+    .nav-item i{font-size:14px;}
+    .submenu{display:none;flex-direction:column;background:#0d0f14;}
+    .submenu.open{display:flex;}
+    .subitem{display:flex;align-items:center;gap:8px;padding:7px 12px 7px 30px;font-size:11px;color:#6b7280;cursor:pointer;text-decoration:none;}
+    .subitem:hover{color:#cbd5e1;background:#1a1d25;}
+    .subitem.active{color:#38bdf8;}
+    .smeta{padding:10px 12px 0;border-top:0.5px solid #2a2d36;margin-top:10px;font-size:9px;color:#4b5563;line-height:1.7;}
+
+    /* Main */
+    .main{flex:1;padding:24px;overflow-y:auto;}
+    .ptitle{font-size:20px;font-weight:600;margin-bottom:4px;}
+    .psub{font-size:12px;color:#94a3b8;margin-bottom:20px;}
+
+    /* Toolbar */
+    .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#111318;border:0.5px solid #2a2d36;border-radius:8px;padding:14px 16px;margin-bottom:20px;}
+    .ctl{display:flex;flex-direction:column;gap:4px;}
+    .ctl label{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;}
+    .dark-input{background:#0d0f14;border:1px solid #2a2d36;color:#e2e8f0;padding:7px 10px;border-radius:5px;font-size:13px;outline:none;}
+    .dark-input:focus{border-color:#38bdf8;}
+    .seg{display:flex;border:1px solid #2a2d36;border-radius:5px;overflow:hidden;}
+    .seg button{background:#0d0f14;border:none;color:#94a3b8;padding:7px 14px;font-size:12px;cursor:pointer;}
+    .seg button.on{background:#1a2535;color:#38bdf8;}
+    .btn-export{margin-left:auto;background:#22c55e;color:#04120a;border:none;padding:9px 16px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+    .btn-export:hover{background:#16a34a;}
+
+    /* Pie grid */
+    .pies{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px;}
+    .pie-card{background:#111318;border:0.5px solid #2a2d36;border-radius:8px;padding:16px;}
+    .pie-hd{font-size:12px;font-weight:600;margin-bottom:4px;}
+    .pie-sub{font-size:10px;color:#6b7280;margin-bottom:10px;}
+    .pie-wrap{position:relative;height:170px;}
+    .pie-legend{display:flex;justify-content:center;gap:12px;margin-top:10px;font-size:10px;color:#94a3b8;}
+    .pie-legend span{display:inline-flex;align-items:center;gap:4px;}
+    .dot{width:9px;height:9px;border-radius:2px;display:inline-block;}
+
+    /* Tables */
+    .tbl-card{background:#111318;border:0.5px solid #2a2d36;border-radius:8px;padding:16px;margin-bottom:20px;}
+    .tbl-hd{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-bottom:12px;}
+    .tbl-scroll{max-height:430px;overflow:auto;border:1px solid #2a2d36;border-radius:6px;}
+    table{border-collapse:collapse;width:100%;font-size:11px;}
+    th,td{border:1px solid #1e222b;padding:6px 8px;text-align:center;}
+    thead th{position:sticky;top:0;background:#161a22;color:#cbd5e1;z-index:2;text-transform:uppercase;letter-spacing:.04em;font-size:10px;}
+    .grp-r16{background:#13202e;}
+    .grp-r02{background:#1d1726;}
+    td.date{color:#94a3b8;font-weight:600;background:#0d0f14;}
+    .tick{font-weight:700;}
+    .t-green{color:#22c55e;} .t-yellow{color:#eab308;} .t-red{color:#ef4444;}
+    .val{font-size:9px;color:#475569;display:block;}
+    .loading{color:#6b7280;font-size:12px;padding:20px;text-align:center;}
+    /* Performance Thresholds */
+    .thresholds-card {
+        background: #111318;
+        border: 0.5px solid #2a2d36;
+        border-radius: 8px;
+        padding: 18px 20px;
+        margin-bottom: 24px;
+    }
+    .th-title {
+        font-size: 10px;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        font-weight: 700;
+        margin-bottom: 16px;
+    }
+    .th-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 32px;
+    }
+    .th-sec-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #e2e8f0;
+        margin-bottom: 12px;
+    }
+    .th-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+    .th-row:last-child {
+        margin-bottom: 0;
+    }
+    .th-label {
+        width: 32px;
+        font-size: 12px;
+        color: #6b7280;
+    }
+    .badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+    }
+    .b-green { 
+        background: rgba(34, 197, 94, 0.1); 
+        color: #22c55e; 
+    }
+    .b-yellow { 
+        background: rgba(234, 179, 8, 0.1); 
+        color: #eab308; 
+    }
+    .b-red { 
+        background: rgba(239, 68, 68, 0.1); 
+        color: #ef4444; 
+    }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="slogo">
+      <div class="slogo-icon"><i class="ti ti-bolt" style="color:#fff;"></i></div>
+      <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="nav-item"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+      <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+      <div class="nav-item"><i class="ti ti-receipt-2"></i> Settlement</div>
+      <div class="nav-item"><i class="ti ti-database"></i> Data Entry</div>
+
+      <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+        <i class="ti ti-file-analytics"></i> Reports
+        <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="reports-sub"><div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
+        <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+        <div class="subitem active" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
+      </div>
+
+      <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+    </div>
+    <div class="smeta">ISPL · Quenext · Solar · Wind<br>R16 · R02 · NRMSE Engine v1</div>
+  </div>
+
+  <div class="main">
+    <div class="ptitle">NRMSE Monitor</div>
+    <div class="psub">Daily performance bands (green / yellow / red) by company and revision.</div>
+
+    <div class="toolbar">
+      <div class="ctl">
+        <label>Month</label>
+        <select id="sel-month" class="dark-input"></select>
+      </div>
+      <div class="ctl">
+        <label>Year</label>
+        <select id="sel-year" class="dark-input"></select>
+      </div>
+      <div class="ctl">
+        <label>Energy</label>
+        <div class="seg" id="energy-seg">
+          <button data-e="SOLAR" class="on">Solar</button>
+          <button data-e="WIND">Wind</button>
+        </div>
+      </div>
+      <button class="btn-export" onclick="exportCsv()"><i class="ti ti-download"></i> Export CSV</button>
+    </div>
+<div class="thresholds-card">
+      <div class="th-title">Performance Thresholds</div>
+      <div class="th-grid">
+        
+        <div class="th-section">
+          <div class="th-sec-title">Solar</div>
+          <div class="th-row">
+            <span class="th-label">DA2</span>
+            <span class="badge b-green">≤5% Full Pay</span>
+            <span class="badge b-yellow">5–10% Half</span>
+            <span class="badge b-red">&gt;10% Nil</span>
+          </div>
+          <div class="th-row">
+            <span class="th-label">R16</span>
+            <span class="badge b-green">≤3% Full Pay</span>
+            <span class="badge b-yellow">3–5% Half</span>
+            <span class="badge b-red">&gt;5% Nil</span>
+          </div>
+        </div>
+
+        <div class="th-section">
+          <div class="th-sec-title">Wind</div>
+          <div class="th-row">
+            <span class="th-label">DA2</span>
+            <span class="badge b-green">≤10% Full Pay</span>
+            <span class="badge b-yellow">10–15% Half</span>
+            <span class="badge b-red">&gt;15% Nil</span>
+          </div>
+          <div class="th-row">
+            <span class="th-label">R16</span>
+            <span class="badge b-green">≤5% Full Pay</span>
+            <span class="badge b-yellow">5–10% Half</span>
+            <span class="badge b-red">&gt;10% Nil</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="pies" id="pies"></div>
+
+    <div class="tbl-card">
+      <div class="tbl-hd"><span class="dot" style="background:#38bdf8;"></span> ISPL — Daily Bands</div>
+      <div class="tbl-scroll"><div id="ispl-table" class="loading">Loading…</div></div>
+    </div>
+
+    <div class="tbl-card">
+      <div class="tbl-hd"><span class="dot" style="background:#22c55e;"></span> Quenext — Daily Bands</div>
+      <div class="tbl-scroll"><div id="quenext-table" class="loading">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+<script>
+const API_BASE = "http://localhost:8000";
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const COLORS = { green:"#22c55e", yellow:"#eab308", red:"#ef4444" };
+let energy = "SOLAR";
+let pieCharts = {};
+
+// ---- init controls ----
+(function initControls(){
+  const now = new Date();
+  const mSel = document.getElementById('sel-month');
+  MONTHS.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i+1; o.textContent=m; mSel.appendChild(o); });
+  mSel.value = now.getMonth()+1;
+
+  const ySel = document.getElementById('sel-year');
+  for(let y=now.getFullYear()+1; y>=now.getFullYear()-4; y--){ const o=document.createElement('option'); o.value=y; o.textContent=y; ySel.appendChild(o); }
+  ySel.value = now.getFullYear();
+
+  mSel.addEventListener('change', load);
+  ySel.addEventListener('change', load);
+
+  document.querySelectorAll('#energy-seg button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      document.querySelectorAll('#energy-seg button').forEach(x=>x.classList.remove('on'));
+      b.classList.add('on');
+      energy = b.dataset.e;
+      load();
+    });
+  });
+})();
+
+function toggleReports(e){ e.stopPropagation(); document.getElementById('reports-sub').classList.toggle('open'); }
+document.getElementById('reports-sub').classList.add('open'); // open by default on this page
+
+function getParams(){
+  return {
+    year: document.getElementById('sel-year').value,
+    month: document.getElementById('sel-month').value,
+    energy_type: energy
+  };
+}
+
+async function load(){
+  const p = getParams();
+  document.getElementById('ispl-table').className = 'loading';
+  document.getElementById('ispl-table').textContent = 'Loading…';
+  document.getElementById('quenext-table').className = 'loading';
+  document.getElementById('quenext-table').textContent = 'Loading…';
+
+  try{
+    const res = await fetch(`${API_BASE}/api/nrmse/monitor?year=${p.year}&month=${p.month}&energy_type=${p.energy_type}`);
+    const data = await res.json();
+    renderPies(data);
+    renderTable('ispl-table', data.companies.ISPL);
+    renderTable('quenext-table', data.companies.Quenext);
+  }catch(err){
+    document.getElementById('ispl-table').textContent = 'Error connecting to server.';
+    document.getElementById('quenext-table').textContent = 'Error connecting to server.';
+    console.error(err);
+  }
+}
+
+function renderPies(data){
+  const container = document.getElementById('pies');
+  const specs = [
+    {id:'ISPL', rev:'R16'}, {id:'ISPL', rev:'R02'},
+    {id:'Quenext', rev:'R16'}, {id:'Quenext', rev:'R02'}
+  ];
+  container.innerHTML = specs.map(s=>{
+    const key = `${s.id}-${s.rev}`;
+    return `<div class="pie-card">
+      <div class="pie-hd">${s.id} · ${s.rev}</div>
+      <div class="pie-sub">${MONTHS[data.month-1]} ${data.year} · ${data.energy_type}</div>
+      <div class="pie-wrap"><canvas id="pie-${key}"></canvas></div>
+      <div class="pie-legend">
+        <span><span class="dot" style="background:${COLORS.green}"></span>Green</span>
+        <span><span class="dot" style="background:${COLORS.yellow}"></span>Yellow</span>
+        <span><span class="dot" style="background:${COLORS.red}"></span>Red</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  specs.forEach(s=>{
+    const key = `${s.id}-${s.rev}`;
+    const c = data.companies[s.id].counts[s.rev];
+    const total = c.green + c.yellow + c.red;
+    if(pieCharts[key]) pieCharts[key].destroy();
+    pieCharts[key] = new Chart(document.getElementById(`pie-${key}`), {
+      type:'pie',
+      data:{ labels:['Green','Yellow','Red'],
+        datasets:[{ data:[c.green,c.yellow,c.red],
+          backgroundColor:[COLORS.green,COLORS.yellow,COLORS.red], borderColor:'#111318', borderWidth:2 }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false},
+          tooltip:{callbacks:{label:(ctx)=>` ${ctx.label}: ${ctx.parsed} day(s)`}},
+          title:{display:true,text: total? `${total} days`:'No data', color:'#475569', font:{size:10}, position:'bottom'},
+          datalabels:{
+            color:'#0d0f14', font:{weight:'700', size:13},
+            formatter:(v)=> v>0 ? v : ''   // show the day count inside the slice
+          }
+        } },
+      plugins:[ChartDataLabels]
+    });
+  });
+}
+
+function tickCell(c, color){
+  // Show ✓ (and the value) only in the column matching this day's status.
+  if(c.status === color){
+    const v = (c.value===null||c.value===undefined) ? '' : `<span class="val">${c.value}%</span>`;
+    return `<span class="tick t-${color}">✓</span>${v}`;
+  }
+  return '';
+}
+
+function renderTable(elId, cdata){
+  const el = document.getElementById(elId);
+  el.className = '';
+  let html = `<table>
+    <thead>
+      <tr>
+        <th rowspan="2">DATE</th>
+        <th colspan="3" class="grp-r16">R16</th>
+        <th colspan="3" class="grp-r02">R02</th>
+      </tr>
+      <tr>
+        <th class="grp-r16 t-green">Green</th><th class="grp-r16 t-yellow">Yellow</th><th class="grp-r16 t-red">Red</th>
+        <th class="grp-r02 t-green">Green</th><th class="grp-r02 t-yellow">Yellow</th><th class="grp-r02 t-red">Red</th>
+      </tr>
+    </thead><tbody>`;
+
+  cdata.days.forEach(d=>{
+    html += `<tr>
+      <td class="date">${String(d.date).padStart(2,'0')}</td>
+      <td class="grp-r16">${tickCell(d.R16,'green')}</td>
+      <td class="grp-r16">${tickCell(d.R16,'yellow')}</td>
+      <td class="grp-r16">${tickCell(d.R16,'red')}</td>
+      <td class="grp-r02">${tickCell(d.R02,'green')}</td>
+      <td class="grp-r02">${tickCell(d.R02,'yellow')}</td>
+      <td class="grp-r02">${tickCell(d.R02,'red')}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+  el.innerHTML = html;
+}
+
+function exportCsv(){
+  const p = getParams();
+  window.open(`${API_BASE}/api/nrmse/monitor-csv?year=${p.year}&month=${p.month}&energy_type=${p.energy_type}`, '_blank');
+}
+
+load();
+</script>
+</body>
+</html>

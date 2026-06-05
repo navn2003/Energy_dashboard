@@ -1,0 +1,30 @@
+{
+  "dss_id": "DSS00011",
+  "dss_name": "Rajpimpri Solar 132kV",
+  "family": "seasonal_scada",
+  "season": "Spring",
+  "season_months": [
+    2
+  ],
+  "target": "SCADA_POWER_MW",
+  "granularity": "15min",
+  "feature_cols": [
+    "ghi",
+    "dni",
+    "temp",
+    "wind",
+    "irr_ratio",
+    "temp_factor",
+    "wind_temp",
+    "sin_h",
+    "cos_h",
+    "day"
+  ],
+  "n_samples": 10848,
+  "train_rows": 8678,
+  "test_rows": 2170,
+  "mae": 2.8182,
+  "rmse": 5.0434,
+  "r2": 0.1481,
+  "trained_at": "2026-05-27T17:20:57.598416"
+}

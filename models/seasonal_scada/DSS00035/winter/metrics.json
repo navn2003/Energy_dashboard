@@ -1,0 +1,33 @@
+{
+  "dss_id": "DSS00035",
+  "dss_name": "Mahtargaon 132kV",
+  "family": "seasonal_scada",
+  "season": "Winter",
+  "season_months": [
+    10,
+    11,
+    12,
+    1
+  ],
+  "target": "SCADA_POWER_MW",
+  "granularity": "15min",
+  "feature_cols": [
+    "ghi",
+    "dni",
+    "temp",
+    "wind",
+    "irr_ratio",
+    "temp_factor",
+    "wind_temp",
+    "sin_h",
+    "cos_h",
+    "day"
+  ],
+  "n_samples": 47232,
+  "train_rows": 37785,
+  "test_rows": 9447,
+  "mae": 5.7148,
+  "rmse": 13.1469,
+  "r2": -2.1394,
+  "trained_at": "2026-05-27T17:26:28.080348"
+}

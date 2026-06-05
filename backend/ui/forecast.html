@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RE Forecast - On-Demand Engine</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+    /* Shared Dark Styling */
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#0d0f14; color:#e2e8f0; font-family:var(--font-sans, system-ui, -apple-system, sans-serif);}
+    .app{display:flex;min-height:100vh;}
+
+    /* Sidebar */
+    .sidebar{width:172px;background:#111318;border-right:0.5px solid #2a2d36;padding:14px 0;flex-shrink:0;}
+    .slogo{display:flex;align-items:center;gap:8px;padding:0 12px 14px;border-bottom:0.5px solid #2a2d36;}
+    .slogo-icon{width:26px;height:26px;background:#0ea5e9;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+    .slogo-t{font-size:11px;font-weight:600;color:#e2e8f0;line-height:1.2;}
+    .slogo-s{font-size:9px;color:#6b7280;}
+    .nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#6b7280;cursor:pointer; text-decoration: none;}
+    .nav-item:hover{color:#cbd5e1;background:#1a1d25;}
+    .nav-item.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
+    .nav-item i{font-size:14px;}
+    .smeta{padding:10px 12px 0;border-top:0.5px solid #2a2d36;margin-top:10px;font-size:9px;color:#4b5563;line-height:1.7;}
+
+    /* Main Area */
+    .main{flex:1;padding:24px;overflow-y:auto;}
+    .ptitle{font-size:20px;font-weight:600;margin-bottom:4px;}
+    .psub{font-size:12px;color:#94a3b8;margin-bottom:24px;}
+
+    /* Form Area */
+    .form-card { background:#111318; border:0.5px solid #2a2d36; border-radius:8px; padding:20px; margin-bottom: 20px;}
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
+    .input-group { display: flex; flex-direction: column; gap: 6px; }
+    .input-group label { font-size: 11px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }
+    .dark-input { background: #0d0f14; border: 1px solid #2a2d36; color: #e2e8f0; padding: 9px 12px; border-radius: 5px; font-size: 13px; outline: none; }
+    .dark-input:focus { border-color: #38bdf8; }
+    .checkbox-group { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #cbd5e1; margin-top: 10px;}
+
+    .btn-run { background: #38bdf8; color: #0d1117; border: none; padding: 10px 20px; border-radius: 5px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s;}
+    .btn-run:hover { background: #0ea5e9; }
+    .btn-run:disabled { background: #1e293b; color: #64748b; cursor: not-allowed; }
+
+    /* Results Area */
+    #results-area { display: none; }
+    .chart-card { background:#111318; border:0.5px solid #2a2d36; border-radius:8px; padding:20px; margin-bottom: 20px; }
+    .btn-download { background: #22c55e; color: #000; border: none; padding: 8px 16px; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 15px;}
+
+    .log-box { background: #0d0f14; border: 1px solid #2a2d36; border-radius: 5px; padding: 12px; font-family: monospace; font-size: 11px; color: #94a3b8; white-space: pre-wrap; max-height: 250px; overflow-y: auto;}
+
+    .loader { display: none; margin-top: 10px; font-size: 12px; color: #38bdf8; align-items: center; gap: 8px; }
+
+    .empty-msg { display:none; color:#f59e0b; font-size:12px; padding:30px; text-align:center; }
+
+    .submenu{display:none;flex-direction:column;background:#0d0f14;}
+    .submenu.open{display:flex;}
+    .subitem{display:flex;align-items:center;gap:8px;padding:7px 12px 7px 30px;font-size:11px;color:#6b7280;cursor:pointer;text-decoration:none;}
+    .subitem:hover{color:#cbd5e1;background:#1a1d25;}
+    .subitem.active{color:#38bdf8;}
+</style>
+</head>
+<body>
+<div class="app">
+    <div class="sidebar">
+      <div class="slogo">
+        <div class="slogo-icon"><i class="ti ti-bolt" style="color:#fff;"></i></div>
+        <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
+      </div>
+      <div style="margin-top:10px;">
+  <div class="nav-item"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+  <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+  <div class="nav-item"><i class="ti ti-receipt-2"></i> Settlement</div>
+  <div class="nav-item"><i class="ti ti-database"></i> Data Entry</div>
+        <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+        <i class="ti ti-file-analytics"></i> Reports
+        <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="reports-sub"><div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
+        <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+        <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
+      </div>
+  <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+</div>
+    </div>
+
+    <div class="main">
+        <div class="ptitle">On-Demand ML Forecaster</div>
+        <div class="psub">Trigger predictive models manually for any plant, date, and horizon.</div>
+
+        <div class="form-card">
+            <div class="form-grid">
+                <div class="input-group">
+                    <label>Target Date</label>
+                    <input type="date" id="fc-date" class="dark-input">
+                </div>
+                <div class="input-group">
+                    <label>Target Plant</label>
+                    <select id="fc-plant" class="dark-input">
+                        <option value="ALL">All Plants</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Model Family</label>
+                    <select id="fc-family" class="dark-input">
+                        <option value="">Auto (Best Available)</option>
+                        <option value="all_season_scada">All-Season SCADA (15-min)</option>
+                        <option value="all_season_meter">All-Season Meter (15-min)</option>
+                        <option value="seasonal_scada">Seasonal SCADA (15-min)</option>
+                        <option value="seasonal_meter">Seasonal Meter (Daily)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Horizon (Slots)</label>
+                    <input type="number" id="fc-horizon" class="dark-input" value="96" min="1" max="672">
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content: space-between; align-items: center; border-top: 1px solid #2a2d36; padding-top: 16px; margin-top: 5px;">
+                <div style="display: flex; gap: 20px;">
+                    <label class="checkbox-group"><input type="checkbox" id="fc-eval"> Run Backtest Evaluation</label>
+                    <label class="checkbox-group"><input type="checkbox" id="fc-ens"> Output Ensemble Average</label>
+                </div>
+                <button class="btn-run" id="btn-submit" onclick="runForecast()"><i class="ti ti-player-play-filled"></i> Generate Forecast</button>
+            </div>
+            <div class="loader" id="loader"><i class="ti ti-loader"></i> Model is running. This may take 1-2 minutes depending on horizon...</div>
+        </div>
+
+        <div id="results-area">
+            <div class="chart-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div style="font-weight: 600; color: #e2e8f0;"><i class="ti ti-chart-line"></i> Forecast Output Preview <span id="preview-lbl" style="color:#6b7280; font-size: 12px; font-weight: normal; margin-left: 10px;"></span></div>
+                    <a id="btn-download" href="#" class="btn-download"><i class="ti ti-file-spreadsheet"></i> Download Full Excel</a>
+                </div>
+                <div style="position:relative;width:100%;height:300px;"><canvas id="forecast-chart"></canvas></div>
+                <div class="empty-msg" id="empty-msg"></div>
+            </div>
+
+            <div class="chart-card">
+                <div style="font-weight: 600; color: #e2e8f0; margin-bottom: 10px;"><i class="ti ti-terminal-2"></i> Model Execution Logs</div>
+                <div class="log-box" id="log-output"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+    const API_BASE = "http://localhost:8000";
+    let fChart = null;
+
+    // Set today as default
+    document.getElementById('fc-date').valueAsDate = new Date();
+
+    // Fetch Plants
+    async function loadPlants() {
+        try {
+            const res = await fetch(`${API_BASE}/api/plants`);
+            const data = await res.json();
+            const select = document.getElementById('fc-plant');
+            data.plants.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.plant_id || p.dss_id;
+                opt.textContent = `${p.plant_id || p.dss_id} - ${p.name || p.plant_name}`;
+                select.appendChild(opt);
+            });
+        } catch(e) { console.error("Could not load plants", e); }
+    }
+    loadPlants();
+
+    async function runForecast() {
+        const btn = document.getElementById('btn-submit');
+        const loader = document.getElementById('loader');
+        const resultsArea = document.getElementById('results-area');
+        const emptyMsg = document.getElementById('empty-msg');
+        const canvas = document.getElementById('forecast-chart');
+
+        btn.disabled = true;
+        loader.style.display = "flex";
+        resultsArea.style.display = "none";
+
+        const payload = {
+            date: document.getElementById('fc-date').value,
+            plant: document.getElementById('fc-plant').value,
+            family: document.getElementById('fc-family').value || null,
+            horizon: parseInt(document.getElementById('fc-horizon').value),
+            evaluate: document.getElementById('fc-eval').checked,
+            ensemble: document.getElementById('fc-ens').checked,
+            models_dir: "models"
+        };
+
+        try {
+            const res = await fetch(`${API_BASE}/api/run-forecast`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+
+            if (data.error) {
+                alert("Error: " + data.error);
+            } else {
+                // Success! Always show the results area + download + logs.
+                document.getElementById('btn-download').href = API_BASE + data.download_url;
+                document.getElementById('log-output').textContent = data.log || "(no logs returned)";
+
+                const series = Array.isArray(data.series) ? data.series : [];
+                const lbl = data.chart_sheet
+                    ? `(${data.chart_sheet}${data.total_points ? " · " + data.total_points + " pts" : ""})`
+                    : "";
+                document.getElementById('preview-lbl').textContent = lbl;
+
+                resultsArea.style.display = "block";
+
+                if (series.length > 0) {
+                    emptyMsg.style.display = "none";
+                    canvas.style.display = "block";
+
+                    const labels  = series.map(s => s.timestamp);
+                    const mw_data = series.map(s => Number(s.forecast_mw) || 0);
+
+                    if (fChart) fChart.destroy();
+                    fChart = new Chart(canvas, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{ label: 'Forecast MW', data: mw_data, borderColor: '#38bdf8', backgroundColor: 'rgba(56,189,248,0.1)', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true }]
+                        },
+                        options: { responsive: true, maintainAspectRatio: false, interaction: {mode: 'index', intersect: false}, scales: { x:{ticks:{color:'#94a3b8', font:{size:10}, maxTicksLimit: 12}, grid:{color:'rgba(255,255,255,0.05)'}}, y:{ticks:{color:'#94a3b8', font:{size:10}}, grid:{color:'rgba(255,255,255,0.05)'}, min:0} }, plugins: { legend: {display:false} } }
+                    });
+                } else {
+                    // No plottable series — say so instead of drawing a blank chart.
+                    if (fChart) { fChart.destroy(); fChart = null; }
+                    canvas.style.display = "none";
+                    emptyMsg.style.display = "block";
+                    emptyMsg.textContent = data.note
+                        ? ("No chart data: " + data.note + " The Excel is still available above.")
+                        : "The forecast ran and the Excel is ready, but no plottable series was returned. Check the logs below.";
+                }
+            }
+        } catch (e) {
+            alert("Network error. Is the server running?");
+        } finally {
+            btn.disabled = false;
+            loader.style.display = "none";
+        }
+    }
+</script>
+<script>
+  // Automatically highlight the current page in the sidebar
+  const currentPath = window.location.pathname.split("/").pop();
+  document.querySelectorAll('.nav-item').forEach(item => {
+    if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(currentPath)) {
+      item.classList.add('active');
+    }
+  });
+</script>
+
+<script>
+  function toggleReports(e){ if(e) e.stopPropagation(); var s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
+  (function(){var s=document.getElementById('reports-sub'); if(s && s.querySelector('.subitem.active')) s.classList.add('open');})();
+</script>
+</body>
+</html>

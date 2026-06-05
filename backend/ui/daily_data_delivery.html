@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Data Delivery</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#0d0f14;color:#e2e8f0;font-family:var(--font-sans,system-ui,-apple-system,sans-serif);}
+    .app{display:flex;min-height:100vh;}
+
+    /* Sidebar */
+    .sidebar{width:172px;background:#111318;border-right:0.5px solid #2a2d36;padding:14px 0;flex-shrink:0;}
+    .slogo{display:flex;align-items:center;gap:8px;padding:0 12px 14px;border-bottom:0.5px solid #2a2d36;}
+    .slogo-icon{width:26px;height:26px;background:#0ea5e9;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+    .slogo-t{font-size:11px;font-weight:600;color:#e2e8f0;line-height:1.2;}
+    .slogo-s{font-size:9px;color:#6b7280;}
+    .nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#6b7280;cursor:pointer;text-decoration:none;}
+    .nav-item:hover{color:#cbd5e1;background:#1a1d25;}
+    .nav-item.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
+    .nav-item i{font-size:14px;}
+    .submenu{display:none;flex-direction:column;background:#0d0f14;}
+    .submenu.open{display:flex;}
+    .subitem{display:flex;align-items:center;gap:8px;padding:7px 12px 7px 30px;font-size:11px;color:#6b7280;cursor:pointer;text-decoration:none;}
+    .subitem:hover{color:#cbd5e1;background:#1a1d25;}
+    .subitem.active{color:#38bdf8;}
+    .smeta{padding:10px 12px 0;border-top:0.5px solid #2a2d36;margin-top:10px;font-size:9px;color:#4b5563;line-height:1.7;}
+
+    /* Main */
+    .main{flex:1;padding:24px;overflow-y:auto;}
+    .ptitle{font-size:20px;font-weight:600;margin-bottom:4px;}
+    .psub{font-size:12px;color:#94a3b8;margin-bottom:20px;}
+
+    /* Toolbar */
+    .toolbar{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;background:#111318;border:0.5px solid #2a2d36;border-radius:8px;padding:14px 16px;margin-bottom:20px;}
+    .ctl{display:flex;flex-direction:column;gap:4px;}
+    .ctl label{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;}
+    .dark-input{background:#0d0f14;border:1px solid #2a2d36;color:#e2e8f0;padding:8px 11px;border-radius:5px;font-size:13px;outline:none;}
+    .dark-input:focus{border-color:#38bdf8;}
+    .btn{border:none;padding:9px 16px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+    .btn-load{background:#38bdf8;color:#06141f;}
+    .btn-load:hover{background:#0ea5e9;}
+    .hint{font-size:10px;color:#6b7280;margin-left:auto;max-width:260px;line-height:1.5;}
+
+    /* Report card */
+    .card{background:#111318;border:0.5px solid #2a2d36;border-radius:8px;padding:20px;margin-bottom:20px;}
+    .rep-title{font-size:16px;font-weight:600;margin-bottom:2px;}
+    .rep-sub{font-size:11px;color:#94a3b8;margin-bottom:16px;}
+    .status-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:99px;margin-left:10px;vertical-align:middle;}
+    .pill-ok{background:rgba(34,197,94,.12);color:#22c55e;}
+    .pill-alert{background:rgba(239,68,68,.12);color:#ef4444;}
+
+    table{border-collapse:collapse;width:100%;font-size:13px;}
+    th,td{border:1px solid #1e222b;padding:10px 12px;text-align:left;}
+    thead th{background:#161a22;color:#cbd5e1;text-transform:uppercase;letter-spacing:.04em;font-size:10px;}
+    td.center,th.center{text-align:center;}
+    .file-cell{font-family:ui-monospace,Menlo,Consolas,monospace;color:#e2e8f0;}
+    .rev{font-weight:600;color:#94a3b8;}
+    .count{font-weight:700;}
+    .count.ok{color:#22c55e;} .count.bad{color:#ef4444;}
+    .dl{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#38bdf8;text-decoration:none;border:1px solid #2a3a4a;padding:5px 10px;border-radius:5px;}
+    .dl:hover{background:#1a2535;}
+    .dl.disabled{color:#475569;border-color:#1e222b;pointer-events:none;}
+
+    .banner{font-size:12px;padding:10px 14px;border-radius:6px;margin-bottom:14px;}
+    .banner-err{background:rgba(239,68,68,.1);color:#fca5a5;border:1px solid rgba(239,68,68,.25);}
+    .loading{color:#6b7280;font-size:13px;padding:24px;text-align:center;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="slogo">
+      <div class="slogo-icon"><i class="ti ti-bolt" style="color:#fff;"></i></div>
+      <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="nav-item"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+      <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+      <div class="nav-item"><i class="ti ti-receipt-2"></i> Settlement</div>
+      <div class="nav-item"><i class="ti ti-database"></i> Data Entry</div>
+
+      <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+        <i class="ti ti-file-analytics"></i> Reports
+        <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="reports-sub">
+        <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+        <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
+        <div class="subitem active" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
+      </div>
+
+      <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+    </div>
+    <div class="smeta">ISPL · Quenext · Solar · Wind<br>DA2 · R16 · DSS Engine v1</div>
+  </div>
+
+  <div class="main">
+    <div class="ptitle">Daily Data Delivery</div>
+    <div class="psub">DSS column availability for the daily delivery files, fetched live from the server.</div>
+
+    <div class="toolbar">
+      <div class="ctl">
+        <label>Run Date</label>
+        <input type="date" id="run-date" class="dark-input">
+      </div>
+      <button class="btn btn-load" onclick="load()"><i class="ti ti-refresh"></i> Load Report</button>
+      <div class="hint"><i class="ti ti-info-circle"></i> DA2 file = run date + 1 day · R16 file = run date − 1 day</div>
+    </div>
+
+    <div class="card">
+      <div class="rep-title">Daily DSS availability report <span id="status-pill"></span></div>
+      <div class="rep-sub" id="rep-sub">Select a run date and load.</div>
+      <div id="banner-slot"></div>
+      <div id="table-slot"><div class="loading">No report loaded yet.</div></div>
+    </div>
+
+    <div class="card">
+      <div class="rep-title"><span class="dot" style="background:#38bdf8;display:inline-block;width:9px;height:9px;border-radius:2px;"></span> ISPL — Database Load Status
+        <span style="font-size:11px;font-weight:400;color:#6b7280;margin-left:8px;">DSS IDs loaded into the DB for this forecast date</span>
+      </div>
+      <div class="rep-sub" id="ispl-db-sub"></div>
+      <div id="ispl-db-slot"><div class="loading">Load a report to check the DB.</div></div>
+    </div>
+
+    <div class="card">
+      <div class="rep-title"><span class="dot" style="background:#22c55e;display:inline-block;width:9px;height:9px;border-radius:2px;"></span> Quenext — Database Load Status
+        <span style="font-size:11px;font-weight:400;color:#6b7280;margin-left:8px;">DSS IDs loaded into the DB for this forecast date</span>
+      </div>
+      <div class="rep-sub" id="quenext-db-sub"></div>
+      <div id="quenext-db-slot"><div class="loading">Load a report to check the DB.</div></div>
+    </div>
+
+    <div class="card">
+      <div class="rep-title"><i class="ti ti-sun-off" style="color:#f59e0b"></i> Daylight Null Check
+        <span style="font-size:11px;font-weight:400;color:#6b7280;margin-left:8px;">DSS IDs with null values between 05:30 and 19:00 (solar should not be null after sunrise)</span>
+      </div>
+      <div class="rep-sub" id="null-sub"></div>
+      <div id="null-slot"><div class="loading">Load a report to run the check.</div></div>
+    </div>
+  </div>
+  
+</div>
+
+<script>
+const API_BASE = "http://localhost:8000";
+
+// Sidebar dropdown
+function toggleReports(e){ if(e) e.stopPropagation(); const s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
+(function(){ const s=document.getElementById('reports-sub'); if(s && s.querySelector('.subitem.active')) s.classList.add('open'); })();
+
+// Default to today
+document.getElementById('run-date').valueAsDate = new Date();
+
+function renderDbBox(slotId, subId, comp, expected){
+  const slot = document.getElementById(slotId);
+  const sub  = document.getElementById(subId);
+  if (comp && comp.error){
+    sub.textContent = '';
+    slot.innerHTML = `<div class="banner banner-err"><i class="ti ti-alert-triangle"></i> ${comp.error}</div>`;
+    return;
+  }
+  const revs = (comp && comp.revisions) || {};
+  const order = ['R16','DA2'];
+  let html = `<table>
+    <thead><tr>
+      <th>Revision</th><th class="center">DSS IDs / ${expected}</th><th class="center">Blocks</th><th class="center">Status</th>
+    </tr></thead><tbody>`;
+  order.forEach(rev => {
+    const r = revs[rev] || {dss:0, blocks:0, present:false, raw:null};
+    const ok = r.dss >= expected;
+    const cls = r.dss === 0 ? 'bad' : (ok ? 'ok' : 'bad');
+    const rawLbl = r.raw ? ` <span style="color:#475569;font-size:10px">(${r.raw})</span>` : '';
+    const statusTxt = r.dss === 0
+      ? '<span class="count bad">NOT LOADED</span>'
+      : (ok ? '<span class="count ok">COMPLETE</span>' : '<span class="count bad">PARTIAL</span>');
+    html += `<tr>
+      <td class="rev">${rev}${rawLbl}</td>
+      <td class="center"><span class="count ${cls}">${r.dss} / ${expected}</span></td>
+      <td class="center" style="color:#94a3b8">${r.blocks}</td>
+      <td class="center">${statusTxt}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+  slot.innerHTML = html;
+}
+
+async function loadDbStatus(d){
+  const exp = 212;
+  try{
+    const res = await fetch(`${API_BASE}/api/daily-delivery/db?date=${encodeURIComponent(d)}`);
+    const data = await res.json();
+    const expected = data.expected || exp;
+    const sub = `Forecast date: ${data.date || d}`;
+    document.getElementById('ispl-db-sub').textContent = sub;
+    document.getElementById('quenext-db-sub').textContent = sub;
+    renderDbBox('ispl-db-slot', 'ispl-db-sub', (data.companies||{}).ISPL, expected);
+    renderDbBox('quenext-db-slot', 'quenext-db-sub', (data.companies||{}).Quenext, expected);
+    // re-set subs (renderDbBox may clear on error)
+    if (!((data.companies||{}).ISPL||{}).error) document.getElementById('ispl-db-sub').textContent = sub;
+    if (!((data.companies||{}).Quenext||{}).error) document.getElementById('quenext-db-sub').textContent = sub;
+  }catch(err){
+    ['ispl-db-slot','quenext-db-slot'].forEach(id=>{
+      document.getElementById(id).innerHTML = `<div class="banner banner-err"><i class="ti ti-alert-triangle"></i> Could not reach the DB endpoint.</div>`;
+    });
+    console.error(err);
+  }
+}
+
+function renderNullCheck(rows){
+  const slot = document.getElementById('null-slot');
+  const sub  = document.getElementById('null-sub');
+
+  const parts = rows.map(r => {
+    const na = r.null_analysis || {};
+    if (!r.found) return `${r.revision}: file not found`;
+    if (na.error) return `${r.revision}: ${na.error}`;
+    return `${r.revision}: ${na.window_rows} daylight slots checked`;
+  });
+  sub.textContent = parts.join('  ·  ');
+
+  const flat = [];
+  rows.forEach(r => {
+    const na = r.null_analysis || {};
+    (na.flagged || []).forEach(f => {
+      flat.push({ dss: f.dss, revision: r.revision, file: r.file,
+                  count: f.null_count, times: (f.example_times || []).join(', ') });
+    });
+  });
+
+  if (flat.length === 0) {
+    const anyChecked = rows.some(r => r.found && (r.null_analysis||{}).window_rows > 0);
+    slot.innerHTML = anyChecked
+      ? `<div class="banner" style="background:rgba(34,197,94,.1);color:#86efac;border:1px solid rgba(34,197,94,.25)"><i class="ti ti-circle-check"></i> No daylight nulls found — all DSS IDs have values between 05:30 and 19:00.</div>`
+      : `<div class="loading">No data available to check.</div>`;
+    return;
+  }
+
+  flat.sort((a,b) => b.count - a.count);
+
+  let html = `<div style="margin-bottom:10px;font-size:12px;color:#fca5a5;">
+      <i class="ti ti-alert-triangle"></i> ${flat.length} flagged entr${flat.length===1?'y':'ies'} across both files.
+    </div>
+    <table>
+      <thead><tr>
+        <th>DSS ID</th><th>Revision</th><th class="center">Null Count</th><th>Null Slots (05:30–19:00)</th>
+      </tr></thead><tbody>`;
+  flat.forEach(f => {
+    html += `<tr>
+      <td class="file-cell" style="color:#fca5a5">${f.dss}</td>
+      <td class="rev">${f.revision}</td>
+      <td class="center"><span class="count bad">${f.count}</span></td>
+      <td style="color:#94a3b8;font-size:12px">${f.times || '—'}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+  slot.innerHTML = html;
+}
+
+async function load(){
+  const d = document.getElementById('run-date').value;
+  const tableSlot = document.getElementById('table-slot');
+  const bannerSlot = document.getElementById('banner-slot');
+  const pill = document.getElementById('status-pill');
+  bannerSlot.innerHTML = '';
+  pill.innerHTML = '';
+  tableSlot.innerHTML = '<div class="loading"><i class="ti ti-loader"></i> Fetching files from server…</div>';
+  document.getElementById('null-slot').innerHTML = '<div class="loading">Running null check…</div>';
+  document.getElementById('null-sub').textContent = '';
+  document.getElementById('ispl-db-slot').innerHTML = '<div class="loading">Checking DB…</div>';
+  document.getElementById('quenext-db-slot').innerHTML = '<div class="loading">Checking DB…</div>';
+  document.getElementById('rep-sub').textContent = 'Run date: ' + (d || '—');
+
+  // DB status runs independently of the SFTP fetch.
+  loadDbStatus(d);
+
+  try{
+    const res = await fetch(`${API_BASE}/api/daily-delivery?date=${encodeURIComponent(d)}`);
+    const data = await res.json();
+
+    if (data.error && (!data.rows || data.rows.length === 0)) {
+      tableSlot.innerHTML = '';
+      bannerSlot.innerHTML = `<div class="banner banner-err"><i class="ti ti-alert-triangle"></i> ${data.error}</div>`;
+      return;
+    }
+
+    document.getElementById('rep-sub').textContent = 'Run date: ' + data.run_date + '  ·  Mode: ' + data.mode;
+
+    if (data.error) {
+      bannerSlot.innerHTML = `<div class="banner banner-err"><i class="ti ti-alert-triangle"></i> ${data.error}</div>`;
+    }
+
+    const rows = data.rows || [];
+    const allOk = rows.length > 0 && rows.every(r => r.ok);
+    pill.className = 'status-pill ' + (allOk ? 'pill-ok' : 'pill-alert');
+    pill.innerHTML = allOk
+      ? '<i class="ti ti-circle-check"></i> OK'
+      : '<i class="ti ti-alert-circle"></i> ALERT';
+
+    let html = `<table>
+      <thead><tr>
+        <th>File</th><th>Date</th><th>Revision</th>
+        <th class="center">Columns / ${data.expected}</th>
+        <th class="center">Download</th>
+      </tr></thead><tbody>`;
+
+    rows.forEach(r => {
+      const countCls = r.ok ? 'ok' : 'bad';
+      const countTxt = r.found ? `${r.present} / ${r.expected}` : 'NOT FOUND';
+      const sizeTxt = r.found ? ` <span style="color:#475569;font-size:10px">(${r.size_kb} KB)</span>` : '';
+      const dl = r.found
+        ? `<a class="dl" href="${API_BASE}/api/daily-delivery/download?file=${encodeURIComponent(r.file)}"><i class="ti ti-download"></i> CSV</a>`
+        : `<span class="dl disabled"><i class="ti ti-ban"></i> —</span>`;
+      html += `<tr>
+        <td class="file-cell">${r.file}${sizeTxt}</td>
+        <td>${r.date}</td>
+        <td class="rev">${r.revision}</td>
+        <td class="center"><span class="count ${countCls}">${countTxt}</span></td>
+        <td class="center">${dl}</td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+    tableSlot.innerHTML = html;
+
+    renderNullCheck(rows);
+
+  }catch(err){
+    tableSlot.innerHTML = '';
+    bannerSlot.innerHTML = `<div class="banner banner-err"><i class="ti ti-alert-triangle"></i> Network error. Is the API server running?</div>`;
+    console.error(err);
+  }
+}
+
+load();
+</script>
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- DAYTIME 0/NULL CHECK  —  paste this whole block into                  -->
+<!-- daily_data_delivery.html, right BEFORE the closing  </div> of <main>  -->
+<!-- (i.e. after the existing report card).                                -->
+<!-- It reuses API_BASE and the #run-date input already on the page.       -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+<style>
+  .dt-card{background:#111318;border:0.5px solid #2a2d36;border-radius:8px;padding:20px;margin-bottom:20px;}
+  .dt-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+  .dt-title{font-size:16px;font-weight:600;}
+  .dt-sub{font-size:11px;color:#94a3b8;margin-bottom:14px;}
+  .dt-btn{background:#38bdf8;color:#06141f;border:none;padding:8px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .dt-btn:hover{background:#0ea5e9;}
+  .dt-seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+  .dt-seg button{background:#0d0f14;border:1px solid #2a2d36;color:#94a3b8;padding:7px 12px;font-size:12px;border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .dt-seg button.on{background:#1a2535;border-color:#38bdf8;color:#38bdf8;}
+  .dt-badge{font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;}
+  .dt-badge.bad{background:rgba(239,68,68,.15);color:#ef4444;}
+  .dt-badge.ok{background:rgba(34,197,94,.15);color:#22c55e;}
+  .dt-scroll{max-height:460px;overflow:auto;border:1px solid #2a2d36;border-radius:6px;}
+  table.dt-grid{border-collapse:collapse;font-size:10px;width:max-content;min-width:100%;}
+  table.dt-grid th,table.dt-grid td{border:1px solid #1e222b;padding:5px 7px;text-align:center;white-space:nowrap;}
+  table.dt-grid thead th{position:sticky;top:0;background:#161a22;color:#cbd5e1;z-index:2;font-size:9px;}
+  table.dt-grid th.dss,table.dt-grid td.dss{position:sticky;left:0;background:#0d0f14;color:#e2e8f0;z-index:3;font-weight:600;text-align:left;min-width:96px;}
+  table.dt-grid thead th.dss{z-index:4;}
+  td.cell-bad{background:#ef4444;color:#fff;font-weight:700;}
+  td.cell-ok{color:#475569;}
+  .dt-msg{padding:24px;text-align:center;font-size:13px;}
+  .dt-msg.good{color:#22c55e;} .dt-msg.err{color:#fca5a5;}
+</style>
+
+<div class="dt-card">
+  <div class="dt-head">
+    <span class="dt-title"><i class="ti ti-sun-off"></i> Daytime 0 / NULL Check</span>
+    <button class="dt-btn" onclick="runDaytimeCheck()"><i class="ti ti-search"></i> Run Check</button>
+  </div>
+  <div class="dt-sub">Flags DSS IDs with a 0 or NULL forecast between 05:30 and 19:00 (solar can't be zero after sunrise). Uses the Run Date above.</div>
+
+  <div class="dt-seg" id="dt-seg"></div>
+  <div id="dt-body"><div class="dt-msg" style="color:#6b7280;">Click “Run Check” to scan ISPL &amp; Quenext (R16 &amp; DA2).</div></div>
+</div>
+
+<script>
+let dtData = null;
+let dtActive = "ISPL|R16";
+const DT_GROUP_ORDER = ["ISPL|R16","ISPL|DA2","Quenext|R16","Quenext|DA2"];
+
+async function runDaytimeCheck(){
+  const d = document.getElementById('run-date').value;
+  const body = document.getElementById('dt-body');
+  document.getElementById('dt-seg').innerHTML = '';
+  body.innerHTML = '<div class="dt-msg" style="color:#6b7280;"><i class="ti ti-loader"></i> Scanning daytime slots…</div>';
+
+  try{
+    const res = await fetch(`${API_BASE}/api/daily-delivery/daytime-check?date=${encodeURIComponent(d)}`);
+    const data = await res.json();
+    if (data.error){ body.innerHTML = `<div class="dt-msg err">${data.error}</div>`; return; }
+    dtData = data;
+    buildDtTabs();
+    renderDtGroup(dtActive);
+  }catch(err){
+    body.innerHTML = '<div class="dt-msg err">Network error. Is the API server running?</div>';
+    console.error(err);
+  }
+}
+
+function buildDtTabs(){
+  const seg = document.getElementById('dt-seg');
+  seg.innerHTML = '';
+  DT_GROUP_ORDER.forEach(key=>{
+    const g = dtData.groups[key];
+    if(!g) return;
+    const n = g.flagged_count;
+    const badgeCls = n > 0 ? 'bad' : 'ok';
+    const btn = document.createElement('button');
+    btn.className = (key === dtActive ? 'on' : '');
+    btn.innerHTML = `${g.company} · ${g.revision} <span class="dt-badge ${badgeCls}">${n}</span>`;
+    btn.onclick = ()=>{ dtActive = key; buildDtTabs(); renderDtGroup(key); };
+    seg.appendChild(btn);
+  });
+}
+
+function renderDtGroup(key){
+  const body = document.getElementById('dt-body');
+  const g = dtData.groups[key];
+  if(!g){ body.innerHTML = '<div class="dt-msg err">No data for this group.</div>'; return; }
+  if(g.error){ body.innerHTML = `<div class="dt-msg err">Query error: ${g.error}</div>`; return; }
+  if(g.flagged_count === 0){
+    body.innerHTML = `<div class="dt-msg good"><i class="ti ti-circle-check"></i> No DSS with 0/NULL in 05:30–19:00 for ${g.company} · ${g.revision} (${g.total_dss} DSS checked).</div>`;
+    return;
+  }
+
+  const slots = dtData.slots;
+  let html = `<div class="dt-sub" style="margin-bottom:8px;">
+      <span class="dt-badge bad">${g.flagged_count}</span> of ${g.total_dss} DSS flagged · ${g.company} · ${g.revision} · ${dtData.date}
+    </div>`;
+  html += `<div class="dt-scroll"><table class="dt-grid"><thead><tr><th class="dss">DSS_ID</th>`;
+  slots.forEach(s => { html += `<th>${s}</th>`; });
+  html += `</tr></thead><tbody>`;
+
+  g.flagged.forEach(row=>{
+    html += `<tr><td class="dss">${row.dss_id}</td>`;
+    slots.forEach(s=>{
+      const v = row.cells[s];
+      const bad = (v === null || v === 0);
+      const txt = (v === null) ? 'NULL' : v;
+      html += `<td class="${bad ? 'cell-bad' : 'cell-ok'}">${txt}</td>`;
+    });
+    html += `</tr>`;
+  });
+  html += `</tbody></table></div>`;
+  body.innerHTML = html;
+}
+</script>
+</body>
+</html>

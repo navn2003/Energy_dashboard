@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RE Forecast Performance Engine</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+/* Same CSS as before */
+*{box-sizing:border-box;margin:0;padding:0;}
+.app{display:flex;min-height:100vh;background:#0d0f14;overflow:hidden;font-family:var(--font-sans, system-ui, -apple-system, sans-serif);}
+.sidebar{width:172px;background:#111318;border-right:0.5px solid #2a2d36;padding:14px 0;flex-shrink:0;}
+.slogo{display:flex;align-items:center;gap:8px;padding:0 12px 14px;border-bottom:0.5px solid #2a2d36;}
+.slogo-icon{width:26px;height:26px;background:#0ea5e9;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+.slogo-t{font-size:11px;font-weight:600;color:#e2e8f0;line-height:1.2;}
+.slogo-s{font-size:9px;color:#6b7280;}
+.nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#6b7280;cursor:pointer;}
+.nav-item:hover{color:#cbd5e1;background:#1a1d25;}
+.nav-item.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
+.nav-item i{font-size:14px;}
+.smeta{padding:10px 12px 0;border-top:0.5px solid #2a2d36;margin-top:10px;font-size:9px;color:#4b5563;line-height:1.7;}
+.main{flex:1;padding:18px 20px;overflow-y:auto;}
+.ptitle{font-size:18px;font-weight:600;color:#e2e8f0;}
+.psub{font-size:11px;color:#6b7280;margin-bottom:14px;}
+.ctrl-row{display:flex;align-items:center;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+.narr{background:#1a1d25;border:0.5px solid #2a2d36;color:#94a3b8;width:28px;height:28px;border-radius:5px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;}
+.narr:hover{border-color:#38bdf8;color:#38bdf8;background:#1a2535;}
+.dbadge{background:#1a1d25;border:0.5px solid #2a2d36;color:#e2e8f0;font-size:12px;font-weight:500;padding:5px 14px;border-radius:5px;min-width:130px;text-align:center;}
+.mtabs{display:flex;background:#1a1d25;border:0.5px solid #2a2d36;border-radius:6px;overflow:hidden;}
+.mtab{padding:5px 12px;font-size:11px;font-weight:500;color:#6b7280;cursor:pointer;border:none;background:none;}
+.mtab:hover{color:#cbd5e1;background:#222530;}
+.mtab.active{color:#38bdf8;background:#1a2535;}
+.dw{position:relative;}
+.dpbtn{background:#1a1d25;border:0.5px solid #2a2d36;color:#94a3b8;font-size:11px;padding:5px 10px;border-radius:5px;cursor:pointer;display:flex;align-items:center;gap:5px;white-space:nowrap;height:28px;}
+.dpbtn:hover,.dpbtn.open{border-color:#38bdf8;color:#38bdf8;background:#1a2535;}
+.dpbtn i{font-size:13px;}
+.panel{position:absolute;top:calc(100% + 5px);left:0;background:#1a1d25;border:0.5px solid #2a2d36;border-radius:8px;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,0.6);display:none;}
+.panel.open{display:block;}
+.plant-list{width:210px;max-height:220px;overflow-y:auto;padding:6px;}
+.plant-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:5px;cursor:pointer;font-size:12px;color:#94a3b8;}
+.plant-item:hover{background:#222530;color:#e2e8f0;}
+.plant-item.sel{color:#38bdf8;background:#1a2535;}
+.plant-search{width:100%;background:#0d0f14;border:0.5px solid #2a2d36;border-radius:4px;color:#e2e8f0;font-size:11px;padding:5px 8px;margin-bottom:4px;}
+.plant-search:focus{outline:none;border-color:#38bdf8;}
+.cal-wrap{padding:10px;width:244px;}
+.cal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.cal-ht{font-size:12px;font-weight:600;color:#e2e8f0;}
+.cal-nb{background:none;border:none;color:#6b7280;cursor:pointer;font-size:16px;padding:2px 6px;border-radius:3px;}
+.cal-nb:hover{color:#e2e8f0;background:#2a2d36;}
+.cal-g{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;}
+.cal-dow{font-size:9px;color:#4b5563;text-align:center;padding:3px 0;font-weight:600;text-transform:uppercase;}
+.cal-d{font-size:11px;color:#6b7280;text-align:center;padding:5px 2px;cursor:pointer;border-radius:3px;}
+.cal-d:hover{background:#2a2d40;color:#e2e8f0;}
+.cal-d.today{color:#38bdf8;font-weight:700;}
+.cal-d.aday{background:#38bdf8;color:#0d1117;font-weight:700;border-radius:50%;}
+.cal-d.omo{color:#2a2d36;pointer-events:none;}
+.yrr{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;border-top:0.5px solid #2a2d36;padding-top:8px;}
+.yrbtn{background:#0d0f14;border:0.5px solid #2a2d36;color:#94a3b8;font-size:11px;padding:3px 9px;border-radius:3px;cursor:pointer;}
+.yrbtn:hover{border-color:#38bdf8;color:#38bdf8;}
+.yrv{font-size:12px;font-weight:600;color:#e2e8f0;}
+.mo-g{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;padding:8px;width:218px;}
+.mob{padding:7px 4px;text-align:center;font-size:11px;color:#94a3b8;cursor:pointer;border-radius:4px;}
+.mob:hover{background:#2a2d40;color:#e2e8f0;}
+.mob.sel{background:#1a2535;color:#38bdf8;font-weight:600;}
+.cw{padding:12px;width:256px;}
+.cl{font-size:10px;color:#6b7280;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+.ci{width:100%;background:#0d0f14;border:0.5px solid #2a2d36;border-radius:4px;color:#e2e8f0;font-size:12px;padding:6px 9px;}
+.ci:focus{outline:none;border-color:#38bdf8;}
+.ca{width:100%;margin-top:10px;background:#1a2535;border:0.5px solid #38bdf8;color:#38bdf8;font-size:12px;padding:7px;border-radius:5px;cursor:pointer;font-weight:500;}
+.ca:hover{background:#243548;}
+.vlbl{font-size:11px;color:#4b5563;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.vlbl .hl{color:#38bdf8;font-weight:600;}
+.sec{margin-bottom:14px;}
+.sechdr{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:#e2e8f0;margin-bottom:8px;}
+.dot{width:7px;height:7px;border-radius:50%;}
+.mtbl{width:100%;border-collapse:collapse;background:#111318;border-radius:7px;overflow:hidden;border:0.5px solid #2a2d36;}
+.mtbl th{font-size:9px;color:#4b5563;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:9px 14px;background:#0f1117;border-bottom:0.5px solid #1e2130;}
+.mtbl th.c{text-align:center;}
+.mtbl td{padding:12px 14px;border-bottom:0.5px solid #1a1d25;vertical-align:middle;}
+.mtbl tr:last-child td{border-bottom:none;}
+.mtbl tr:hover td{background:#13161e;}
+.vc{display:flex;align-items:center;gap:7px;}
+.vd{width:6px;height:6px;border-radius:50%;}
+.vn{font-size:12px;font-weight:500;color:#cbd5e1;}
+.mc{text-align:center;}
+.mp{font-size:15px;font-weight:700;margin-bottom:2px;}
+.mta{font-size:9px;padding:2px 7px;border-radius:10px;display:inline-block;margin-bottom:2px;}
+.ma{font-size:9px;color:#4b5563;}
+.fp{color:#22c55e;}.fpt{background:rgba(34,197,94,.12);color:#22c55e;}
+.hp{color:#f59e0b;}.hpt{background:rgba(245,158,11,.12);color:#f59e0b;}
+.np{color:#ef4444;}.npt{background:rgba(239,68,68,.12);color:#ef4444;}
+.chart-card{background:#111318;border:0.5px solid #2a2d36;border-radius:7px;padding:14px 16px;margin-bottom:14px;}
+.chart-title{font-size:11px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;}
+.chart-legend{display:flex;gap:14px;margin-bottom:10px;flex-wrap:wrap;}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280;}
+.leg-line{width:18px;height:2px;border-radius:1px;}
+.thresh-box{background:#111318;border:0.5px solid #2a2d36;border-radius:7px;padding:14px 18px;margin-bottom:14px;}
+.thresh-t{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#4b5563;margin-bottom:12px;}
+.thresh-g{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.tst{font-size:11px;font-weight:600;color:#cbd5e1;margin-bottom:6px;}
+.trr{display:flex;align-items:center;gap:5px;margin-bottom:5px;font-size:10px;}
+.trt{color:#6b7280;font-weight:600;width:26px;}
+.tb2{padding:2px 7px;border-radius:9px;font-size:9px;font-weight:500;}
+.tbg{background:rgba(34,197,94,.15);color:#22c55e;}
+.tba{background:rgba(245,158,11,.15);color:#f59e0b;}
+.tbr{background:rgba(239,68,68,.15);color:#ef4444;}
+.site-card{background:#111318;border:0.5px solid #2a2d36;border-radius:7px;padding:14px 16px;margin-bottom:14px;}
+.site-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
+.site-title{font-size:13px;font-weight:600;color:#e2e8f0;display:flex;align-items:center;gap:8px;}
+.site-title i{color:#38bdf8;font-size:16px;}
+.site-actions{display:flex;gap:8px;align-items:center;}
+.site-search{background:#0d0f14;border:0.5px solid #2a2d36;border-radius:4px;color:#e2e8f0;font-size:11px;padding:5px 9px;width:150px;}
+.site-search:focus{outline:none;border-color:#38bdf8;}
+.site-btn{background:#1a1d25;border:0.5px solid #2a2d36;color:#94a3b8;font-size:11px;padding:5px 10px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:5px;}
+.site-btn:hover{border-color:#38bdf8;color:#38bdf8;}
+.stbl{width:100%;border-collapse:collapse;font-size:11px;}
+.stbl th{font-size:9px;color:#4b5563;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:8px 10px;border-bottom:0.5px solid #2a2d36;text-align:left;white-space:nowrap;}
+.stbl td{padding:9px 10px;border-bottom:0.5px solid #1a1d25;color:#94a3b8;white-space:nowrap;}
+.stbl tr:last-child td{border-bottom:none;}
+.stbl tr:hover td{background:#13161e;}
+.dss-badge{background:#1a2535;color:#38bdf8;border:0.5px solid #38bdf8;border-radius:4px;padding:2px 6px;font-size:9px;font-weight:600;}
+.type-solar{background:rgba(245,158,11,.12);color:#f59e0b;border-radius:10px;padding:2px 8px;font-size:9px;font-weight:600;display:inline-flex;align-items:center;gap:4px;}
+.type-wind{background:rgba(56,189,248,.12);color:#38bdf8;border-radius:10px;padding:2px 8px;font-size:9px;font-weight:600;display:inline-flex;align-items:center;gap:4px;}
+.slot-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.slot-title{font-size:13px;font-weight:600;color:#e2e8f0;display:flex;align-items:center;gap:7px;}
+.slot-title i{color:#6b7280;font-size:15px;}
+.slot-wrap{max-height:240px;overflow-y:auto;}
+.slot-tbl{width:100%;border-collapse:collapse;font-size:11px;}
+.slot-tbl th{font-size:9px;color:#4b5563;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:7px 10px;border-bottom:0.5px solid #2a2d36;text-align:left;position:sticky;top:0;background:#111318;z-index:1;}
+.slot-tbl td{padding:8px 10px;border-bottom:0.5px solid #1a1d25;color:#94a3b8;white-space:nowrap;}
+.slot-tbl tr:hover td{background:#13161e;}
+.fc{color:#f59e0b;}.sc{color:#22c55e;}.mec{color:#a78bfa;}
+.panel{
+    position:absolute;
+    top:calc(100% + 5px);
+    left:0;
+    z-index:99999;
+}
+
+    .submenu{display:none;flex-direction:column;background:#0d0f14;}
+    .submenu.open{display:flex;}
+    .subitem{display:flex;align-items:center;gap:8px;padding:7px 12px 7px 30px;font-size:11px;color:#6b7280;cursor:pointer;text-decoration:none;}
+    .subitem:hover{color:#cbd5e1;background:#1a1d25;}
+    .subitem.active{color:#38bdf8;}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="sidebar">
+  <div class="slogo">
+    <div class="slogo-icon"><i class="ti ti-bolt" style="color:#fff;font-size:13px" aria-hidden="true"></i></div>
+    <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
+  </div>
+  <div style="margin-top:10px;">
+  <div class="nav-item"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+  <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+  <div class="nav-item"><i class="ti ti-receipt-2"></i> Settlement</div>
+  <div class="nav-item"><i class="ti ti-database"></i> Data Entry</div>
+        <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+        <i class="ti ti-file-analytics"></i> Reports
+        <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="reports-sub">
+        <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+        <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
+        <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
+      </div>
+  <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+</div>
+  <div class="smeta">ISPL · Quenext · Solar · Wind<br>DA2 · R16 · NRMSE Engine v1</div>
+</div>
+
+<div class="main">
+  <div class="ptitle">NRMSE Performance Matrix</div>
+  <div class="psub">Monthly cumulative NRMSE across all vendor-revision-energy combinations</div>
+
+  <div class="ctrl-row">
+    <button class="narr" id="prev-btn" aria-label="Previous"><i class="ti ti-chevron-left" aria-hidden="true"></i></button>
+    <span class="dbadge" id="dbadge">21 May 2026</span>
+    <button class="narr" id="next-btn" aria-label="Next"><i class="ti ti-chevron-right" aria-hidden="true"></i></button>
+    <div class="mtabs">
+      <button class="mtab active" id="tab-daily" onclick="setMode('daily')">Daily</button>
+      <button class="mtab" id="tab-month" onclick="setMode('month')">Month</button>
+      <button class="mtab" id="tab-custom" onclick="setMode('custom')">Custom</button>
+    </div>
+    <div class="dw" id="daily-picker">
+      <button class="dpbtn"
+        id="cal-btn"
+        onclick="tog('cal-panel','cal-btn',event)">
+    <i class="ti ti-calendar"></i> Pick Day
+</button>
+      <div class="panel" id="cal-panel">
+        <div class="cal-wrap">
+          <div class="cal-hdr"><button class="cal-nb" id="cal-prev">&#8249;</button><span class="cal-ht" id="cal-ht">May 2026</span><button class="cal-nb" id="cal-next">&#8250;</button></div>
+          <div class="cal-g" id="cal-g"></div>
+          <div class="yrr"><button class="yrbtn" id="yr-dec">&#8722;</button><span class="yrv" id="yrv">2026</span><button class="yrbtn" id="yr-inc">+</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="dw" id="month-picker" style="display:none;">
+<button class="dpbtn"
+        id="mo-btn"
+        onclick="tog('mo-panel','mo-btn',event)">
+    <i class="ti ti-calendar-month"></i> Pick Month
+</button>
+      <div class="panel" id="mo-panel">
+        <div class="mo-g" id="mo-g"></div>
+        <div class="yrr" style="border-top:0.5px solid #2a2d36;padding:8px;"><button class="yrbtn" id="mo-yd">&#8722;</button><span class="yrv" id="mo-yv">2026</span><button class="yrbtn" id="mo-yi">+</button></div>
+      </div>
+    </div>
+    <div class="dw" id="custom-picker" style="display:none;">
+<button class="dpbtn"
+        id="cust-btn"
+        onclick="tog('cust-panel','cust-btn',event)">
+    <i class="ti ti-adjustments-horizontal"></i> Date Range
+</button>      <div class="panel" id="cust-panel">
+        <div class="cw">
+          <div class="cl">From</div><input type="date" class="ci" id="cf">
+          <div class="cl" style="margin-top:10px;">To</div><input type="date" class="ci" id="ct">
+          <button class="ca" id="ca-btn">Apply Range</button>
+        </div>
+      </div>
+    </div>
+    <div class="dw">
+<button class="dpbtn"
+        id="plant-btn"
+        onclick="tog('plant-panel','plant-btn',event)">
+    <i class="ti ti-building-factory-2"></i>
+    <span id="plant-label">All Plants</span>
+    <i class="ti ti-chevron-down" style="font-size:10px"></i>
+</button>      <div class="panel" id="plant-panel">
+        <div class="plant-list">
+          <input class="plant-search" placeholder="Search plant..." id="plant-search" oninput="filterPlants()" onclick="event.stopPropagation()">
+          <div id="plant-items"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="vlbl" id="vlbl"><i class="ti ti-calendar-event" aria-hidden="true"></i> Showing: <span class="hl" id="vlbl-hl">21 May 2026</span></div>
+
+  <div class="sec">
+    <div class="sechdr"><span class="dot" style="background:#f59e0b"></span> Solar Generation</div>
+    <table class="mtbl">
+      <thead><tr><th style="width:160px;">Vendor</th><th class="c">R16 (Intra-Day)</th><th class="c">DA2 (Day-Ahead)</th></tr></thead>
+      <tbody id="solar-body"></tbody>
+    </table>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-title">Solar MW vs Timestamp — 96 slots (15-min)</div>
+    <div class="chart-legend">
+      <span class="legend-item"><span class="leg-line" style="background:#22c55e;"></span> Actual</span>
+      <span class="legend-item" style="display:flex;align-items:center;gap:6px;"><svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="5,3"/></svg> ISPL Forecast</span>
+      <span class="legend-item" style="display:flex;align-items:center;gap:6px;"><svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="2,3"/></svg> Quenext Forecast</span>
+    </div>
+    <div style="position:relative;width:100%;height:210px;"><canvas id="solar-chart" role="img" aria-label="Solar MW vs 96 daily 15-minute timestamp slots">Solar MW chart: 96 slots from 00:00 to 23:45.</canvas></div>
+  </div>
+
+  <div class="sec" style="margin-top:14px;">
+    <div class="sechdr"><span class="dot" style="background:#38bdf8"></span> Wind Generation</div>
+    <table class="mtbl">
+      <thead><tr><th style="width:160px;">Vendor</th><th class="c">R16 (Intra-Day)</th><th class="c">DA2 (Day-Ahead)</th></tr></thead>
+      <tbody id="wind-body"></tbody>
+    </table>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-title">Wind MW vs Timestamp — 96 slots (15-min)</div>
+    <div class="chart-legend">
+      <span class="legend-item"><span class="leg-line" style="background:#22c55e;"></span> Actual</span>
+      <span class="legend-item" style="display:flex;align-items:center;gap:6px;"><svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="5,3"/></svg> ISPL Forecast</span>
+      <span class="legend-item" style="display:flex;align-items:center;gap:6px;"><svg width="18" height="8"><line x1="0" y1="4" x2="18" y2="4" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="2,3"/></svg> Quenext Forecast</span>
+    </div>
+    <div style="position:relative;width:100%;height:210px;"><canvas id="wind-chart" role="img" aria-label="Wind MW vs 96 daily 15-minute timestamp slots">Wind MW chart: 96 slots from 00:00 to 23:45.</canvas></div>
+  </div>
+
+  <div class="thresh-box">
+    <div class="thresh-t">Performance Thresholds</div>
+    <div class="thresh-g">
+      <div><div class="tst">Solar</div>
+        <div class="trr"><span class="trt">DA2</span><span class="tb2 tbg">≤5% Full Pay</span><span class="tb2 tba">5–10% Half</span><span class="tb2 tbr">&gt;10% Nil</span></div>
+        <div class="trr"><span class="trt">R16</span><span class="tb2 tbg">≤3% Full Pay</span><span class="tb2 tba">3–5% Half</span><span class="tb2 tbr">&gt;5% Nil</span></div>
+      </div>
+      <div><div class="tst">Wind</div>
+        <div class="trr"><span class="trt">DA2</span><span class="tb2 tbg">≤10% Full Pay</span><span class="tb2 tba">10–15% Half</span><span class="tb2 tbr">&gt;15% Nil</span></div>
+        <div class="trr"><span class="trt">R16</span><span class="tb2 tbg">≤5% Full Pay</span><span class="tb2 tba">5–10% Half</span><span class="tb2 tbr">&gt;10% Nil</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="site-card">
+    <div class="site-hdr">
+      <div class="site-title"><i class="ti ti-table" aria-hidden="true"></i> Per-Site Capacity &amp; Generation Summary</div>
+      <div class="site-actions">
+        <input class="site-search" placeholder="Search site..." id="site-search" oninput="renderSites()">
+        <div class="dw">
+          <button class="site-btn" id="type-btn" onclick="tog('type-panel','type-btn')">All Types <i class="ti ti-chevron-down" style="font-size:10px" aria-hidden="true"></i></button>
+          <div class="panel" id="type-panel" style="width:130px;">
+            <div style="padding:6px;">
+              <div class="plant-item" onclick="setTypeFilter('All')">All Types</div>
+              <div class="plant-item" onclick="setTypeFilter('Solar')"><i class="ti ti-sun" style="color:#f59e0b" aria-hidden="true"></i> Solar</div>
+              <div class="plant-item" onclick="setTypeFilter('Wind')"><i class="ti ti-wind" style="color:#38bdf8" aria-hidden="true"></i> Wind</div>
+            </div>
+          </div>
+        </div>
+        <button class="site-btn"><i class="ti ti-file-type-csv" aria-hidden="true"></i> CSV</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="stbl"><thead><tr><th>#</th><th>DSS ID</th><th>Site Name</th><th>Type</th><th>Plant Cap (MW)</th><th>Eff. AVC (MW)</th><th>Forecast (MWh)</th><th>Actual (MWh)</th><th>Meter (MWh)</th></tr></thead><tbody id="site-body"></tbody></table>
+    </div>
+  </div>
+
+  <div class="site-card">
+    <div class="slot-hdr">
+      <div class="slot-title"><i class="ti ti-list" aria-hidden="true"></i> Slot-level Data <span style="font-size:10px;color:#4b5563;font-weight:400;">— 96 slots / day</span></div>
+      <button class="site-btn"><i class="ti ti-file-type-csv" aria-hidden="true"></i> Export</button>
+    </div>
+    <div class="slot-wrap">
+      <table class="slot-tbl">
+        <thead><tr><th>Timestamp</th><th>Forecast (MW)</th><th>SCADA (MW)</th><th>Meter (MW)</th><th>AVC (MW)</th><th>CF%</th><th>Deviation</th></tr></thead>
+        <tbody id="slot-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+// --- Configuration & Global State ---
+const API_BASE = "http://localhost:8000"; 
+const MS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MSS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+let mode='daily', selY=2026, selM=4, selD=2, calY=2026, calM=4, moPY=2026, customLbl='', selPlant='All', typeFilter='All';
+const thr={solar:{da2:[5,10],r16:[3,5]},wind:{da2:[10,15],r16:[5,10]}};
+let sC=null, wC=null; 
+
+const plants=[
+  {id:'DSS00198',name:'Akhada Balapur 132kV',type:'Solar',cap:9.50,avc:9.50,forecast:130.65},
+  {id:'DSS00212',name:'Raichur Solar Park',type:'Solar',cap:50.00,avc:48.20,forecast:620.40},
+  {id:'DSS00187',name:'Bellary Wind Farm',type:'Wind',cap:33.60,avc:31.80,forecast:280.10},
+  {id:'DSS00225',name:'Gadag Wind Station',type:'Wind',cap:22.50,avc:21.00,forecast:195.30},
+  {id:'DSS00241',name:'Chitradurga Solar',type:'Solar',cap:15.00,avc:14.50,forecast:188.70},
+  {id:'DSS00256',name:'Koppal Wind',type:'Wind',cap:40.00,avc:38.50,forecast:330.20},
+];
+
+// --- Utilities ---
+function getApiDate() {
+    return `${selY}-${String(selM + 1).padStart(2, '0')}-${String(selD).padStart(2, '0')}`;
+}
+
+function cls(v,lo,hi){return v<=lo?'fp':v<=hi?'hp':'np';}
+function tagH(v,lo,hi,avg){
+    const val = parseFloat(v);
+    if(isNaN(val)) return `<span style="color:#6b7280">N/A</span>`;
+    const c=cls(val,lo,hi);
+    const l=c==='fp'?`Full Pay ≤${lo}%`:c==='hp'?`Half Pay ${lo}–${hi}%`:`Nil >${hi}%`;
+    const tc=c+'t';
+    return `<div class="mp ${c}">${val.toFixed(4)}%</div><span class="mta ${tc}">${l}</span><div class="ma">${avg}</div>`;
+}
+function avgStr(){if(mode==='daily')return`${selD} ${MSS[selM]} ${selY}`;if(mode==='month')return`${new Date(selY,selM+1,0).getDate()}d avg`;return customLbl||'range avg';}
+function getBadge(){if(mode==='daily')return`${selD} ${MSS[selM]} ${selY}`;if(mode==='month')return`${MSS[selM]} ${selY}`;return customLbl||'Custom Range';}
+
+
+// --- 1. Fetch & Render NRMSE Matrix ---
+async function renderTables() {
+    try {
+        const dateStr = getApiDate();
+        let url = `${API_BASE}/api/nrmse/daily?date=${dateStr}`;
+        if (mode === 'month') url = `${API_BASE}/api/nrmse/monthly?year=${selY}&month=${selM + 1}`;
+        if (mode === 'custom') {
+            const f = document.getElementById('cf').value;
+            const t = document.getElementById('ct').value;
+            if(f && t) url = `${API_BASE}/api/nrmse/custom?from_date=${f}&to_date=${t}`;
+        }
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        ['solar', 'wind'].forEach(t => {
+            const energyData = data[t] || {};
+            const th = thr[t];
+            
+            const tbody = Object.entries(energyData).map(([company, vals]) => {
+                const r16Val = vals.R16 !== undefined ? vals.R16 : (vals.r16 || NaN); 
+                const da2Val = vals.DA2 !== undefined ? vals.DA2 : (vals.da2 || NaN);
+                
+                return `<tr>
+                    <td><div class="vc">
+                        <span class="vd" style="background:${company === 'ISPL' ? '#38bdf8' : '#22c55e'}"></span>
+                        <span class="vn">${company}</span>
+                    </div></td>
+                    <td class="mc">${tagH(r16Val, th.r16[0], th.r16[1], avgStr())}</td>
+                    <td class="mc">${tagH(da2Val, th.da2[0], th.da2[1], avgStr())}</td>
+                </tr>`;
+            }).join('');
+            
+            document.getElementById(`${t}-body`).innerHTML = tbody || '<tr><td colspan="3" style="text-align:center;color:#6b7280;padding:20px;">No data available</td></tr>';
+        });
+    } catch (err) {
+        console.error("Failed to fetch NRMSE matrix:", err);
+        ['solar', 'wind'].forEach(t => {
+             document.getElementById(`${t}-body`).innerHTML = '<tr><td colspan="3" style="text-align:center;color:#ef4444;">Error connecting to server</td></tr>';
+        });
+    }
+}
+
+// --- 2. Fetch & Render 96-Slot Charts ---
+async function renderCharts() {
+    try {
+        const dateStr = getApiDate();
+        let pId = selPlant !== 'All' ? selPlant : '';
+        
+        const solarRes = await fetch(`${API_BASE}/api/chart/daily?date=${dateStr}&energy_type=SOLAR&plant_id=${pId}`);
+        const solarData = solarRes.ok ? await solarRes.json() : {slots:[]};
+        
+        const windRes = await fetch(`${API_BASE}/api/chart/daily?date=${dateStr}&energy_type=WIND&plant_id=${pId}`);
+        const windData = windRes.ok ? await windRes.json() : {slots:[]};
+
+        const parseChartData = (apiData) => {
+            if (!apiData.slots || apiData.slots.length === 0) return { labels: [], actual: [], ispl: [], quenext: [] };
+            return {
+                labels: apiData.slots.map(s => s.slot),
+                actual: apiData.slots.map(s => s.actual || 0),
+                ispl: apiData.slots.map(s => s.ISPL || 0),
+                quenext: apiData.slots.map(s => s.Quenext || 0)
+            };
+        };
+
+        const sd = parseChartData(solarData);
+        const wd = parseChartData(windData);
+
+        const tickEvery = mode === 'daily' ? 8 : 1;
+
+        const mkCfg = d => ({
+            type: 'line',
+            data: {
+                labels: d.labels,
+                datasets: [
+                    {label: 'Actual', data: d.actual, borderColor: '#22c55e', borderWidth: 2, pointRadius: 0, tension: 0.3},
+                    {label: 'ISPL Forecast', data: d.ispl, borderColor: '#38bdf8', borderWidth: 1.5, pointRadius: 0, tension: 0.3, borderDash: [5, 3]},
+                    {label: 'Quenext Forecast', data: d.quenext, borderColor: '#f59e0b', borderWidth: 1.5, pointRadius: 0, tension: 0.3, borderDash: [2, 3]}
+                ]
+            },
+            options: { 
+                responsive: true, maintainAspectRatio: false, 
+                interaction: {mode: 'index', intersect: false},
+                plugins: { 
+                    legend: { display: false },
+                    tooltip: {backgroundColor: '#1a1d25', titleColor: '#94a3b8', bodyColor: '#e2e8f0', borderColor: '#2a2d36', borderWidth: 1}
+                },
+                scales: {
+                    x: { ticks: { color: '#4b5563', font: {size: 9}, maxRotation: 0, autoSkip: true, callback: (val, i) => i % tickEvery === 0 ? d.labels[i] : ''}, grid: {color: 'rgba(255,255,255,0.04)'} },
+                    y: { ticks: {color: '#4b5563', font: {size: 9}}, grid: {color: 'rgba(255,255,255,0.06)'}, min: 0 }
+                }
+            }
+        });
+
+        if (sC) sC.destroy();
+        if (wC) wC.destroy();
+        sC = new Chart(document.getElementById('solar-chart'), mkCfg(sd));
+        wC = new Chart(document.getElementById('wind-chart'), mkCfg(wd));
+
+    } catch (err) {
+        console.error("Failed to fetch Chart data:", err);
+    }
+}
+
+// --- 3. Mock Data for Sites/Slots (Pending DB integration for these) ---
+function renderSites() {
+  const q=(document.getElementById('site-search').value||'').toLowerCase();
+  const rows=plants.filter(p=>(selPlant==='All'||p.id===selPlant)&&(typeFilter==='All'||p.type===typeFilter)&&(!q||p.name.toLowerCase().includes(q)||p.id.toLowerCase().includes(q)));
+  document.getElementById('site-body').innerHTML=rows.map((r,i)=>{
+    return`<tr>
+        <td style="color:#6b7280">${i+1}</td>
+        <td><span class="dss-badge">${r.id}</span></td>
+        <td style="color:#cbd5e1">${r.name}</td>
+        <td>${r.type==='Solar'?`<span class="type-solar"><i class="ti ti-sun" aria-hidden="true"></i>${r.type}</span>`:`<span class="type-wind"><i class="ti ti-wind" aria-hidden="true"></i>${r.type}</span>`}</td>
+        <td style="color:#e2e8f0">${r.cap.toFixed(2)}</td>
+        <td style="color:#f59e0b">${r.avc.toFixed(2)} <span style="font-size:9px;background:rgba(245,158,11,.12);color:#f59e0b;border-radius:8px;padding:1px 5px;">plant cap</span></td>
+        <td style="color:#e2e8f0">${r.forecast.toFixed(2)}</td>
+        <td style="color:#22c55e">--</td>
+        <td style="color:#a78bfa">--</td>
+    </tr>`;
+  }).join('');
+}
+
+function setTypeFilter(t){typeFilter=t; closeAll(); renderSites();}
+
+function renderSlots() {
+  document.getElementById('slot-body').innerHTML= `<tr><td colspan="7" style="text-align:center;color:#6b7280;padding:20px;">Fetching specific slot data...</td></tr>`;
+}
+
+// --- UI Interaction Logic ---
+function buildPlantItems(){
+  const q=(document.getElementById('plant-search').value||'').toLowerCase();
+  const all=[{id:'All',name:'All Plants',type:'all'},...plants].filter(p=>!q||p.name.toLowerCase().includes(q)||p.id.toLowerCase().includes(q));
+  document.getElementById('plant-items').innerHTML=all.map(p=>`<div class="plant-item${selPlant===p.id?' sel':''}" onclick="selectPlant('${p.id}','${p.name.replace(/'/g,'\\\'')}')">${p.type==='Solar'?'<i class="ti ti-sun" style="color:#f59e0b" aria-hidden="true"></i>':p.type==='Wind'?'<i class="ti ti-wind" style="color:#38bdf8" aria-hidden="true"></i>':'<i class="ti ti-building-factory-2" aria-hidden="true"></i>'} ${p.name}</div>`).join('');
+}
+function filterPlants(){buildPlantItems();}
+
+async function selectPlant(id,name){
+    selPlant=id;
+    document.getElementById('plant-label').textContent=id==='All'?'All Plants':name.length>14?name.substring(0,13)+'…':name;
+    closeAll();
+    renderSites();
+    await renderCharts(); 
+}
+
+async function render(){
+  document.getElementById('dbadge').textContent=getBadge();
+  const icons={daily:'ti-calendar-event',month:'ti-calendar-month',custom:'ti-adjustments-horizontal'};
+  const lbls={daily:`${selD} ${MS[selM]} ${selY}`,month:`${MS[selM]} ${selY}`,custom:customLbl||'Custom Range'};
+  document.getElementById('vlbl').innerHTML=`<i class="ti ${icons[mode]}" aria-hidden="true"></i> Showing: <span class="hl">${lbls[mode] || getBadge()}</span>`;
+  
+  await renderTables();
+  await renderCharts();
+  renderSites(); 
+  renderSlots();
+}
+
+function setMode(m){
+  mode=m;closeAll();
+  ['daily','month','custom'].forEach(t=>document.getElementById('tab-'+t).classList.toggle('active',t===m));
+  document.getElementById('daily-picker').style.display=m==='daily'?'':'none';
+  document.getElementById('month-picker').style.display=m==='month'?'':'none';
+  document.getElementById('custom-picker').style.display=m==='custom'?'':'none';
+  render();
+}
+
+document.getElementById('prev-btn').onclick=()=>{
+  if(mode==='daily'){selD--;if(selD<1){selM--;if(selM<0){selM=11;selY--;}selD=new Date(selY,selM+1,0).getDate();}}
+  else if(mode==='month'){selM--;if(selM<0){selM=11;selY--;}}
+  render();
+};
+document.getElementById('next-btn').onclick=()=>{
+  if(mode==='daily'){const mx=new Date(selY,selM+1,0).getDate();selD++;if(selD>mx){selD=1;selM++;if(selM>11){selM=0;selY++;}}}
+  else if(mode==='month'){selM++;if(selM>11){selM=0;selY++;}}
+  render();
+};
+
+// NOTE: openP / closeAll / tog are defined once in the second script block below.
+// (Previous duplicate definitions here caused a "let openP already declared"
+//  SyntaxError that disabled the calendar popup — removed.)
+
+function buildCal(){
+  document.getElementById('cal-ht').textContent=`${MSS[calM]} ${calY}`;
+  document.getElementById('yrv').textContent=calY;
+  const g=document.getElementById('cal-g');g.innerHTML='';
+  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d=>{const e=document.createElement('div');e.className='cal-dow';e.textContent=d;g.appendChild(e);});
+  const first=new Date(calY,calM,1).getDay(),days=new Date(calY,calM+1,0).getDate(),prev=new Date(calY,calM,0).getDate();
+  for(let i=0;i<first;i++){const e=document.createElement('div');e.className='cal-d omo';e.textContent=prev-first+1+i;g.appendChild(e);}
+  for(let d=1;d<=days;d++){const e=document.createElement('div');e.className='cal-d';if(calY===new Date().getFullYear()&&calM===new Date().getMonth()&&d===new Date().getDate())e.classList.add('today');if(calY===selY&&calM===selM&&d===selD)e.classList.add('aday');e.textContent=d;e.onclick=()=>{selY=calY;selM=calM;selD=d;closeAll();render();};g.appendChild(e);}
+}
+document.getElementById('cal-prev').onclick=e=>{e.stopPropagation();calM--;if(calM<0){calM=11;calY--;}buildCal();};
+document.getElementById('cal-next').onclick=e=>{e.stopPropagation();calM++;if(calM>11){calM=0;calY++;}buildCal();};
+document.getElementById('yr-dec').onclick=e=>{e.stopPropagation();calY--;buildCal();};
+document.getElementById('yr-inc').onclick=e=>{e.stopPropagation();calY++;buildCal();};
+
+function buildMoGrid(){
+  document.getElementById('mo-yv').textContent=moPY;
+  const g=document.getElementById('mo-g');g.innerHTML='';
+  MSS.forEach((m,i)=>{const e=document.createElement('div');e.className='mob'+(i===selM&&moPY===selY?' sel':'');e.textContent=m;e.onclick=()=>{selM=i;selY=moPY;closeAll();render();};g.appendChild(e);});
+}
+document.getElementById('mo-yd').onclick=e=>{e.stopPropagation();moPY--;buildMoGrid();};
+document.getElementById('mo-yi').onclick=e=>{e.stopPropagation();moPY++;buildMoGrid();};
+
+document.getElementById('ca-btn').onclick=()=>{
+  const f=document.getElementById('cf').value,t=document.getElementById('ct').value;
+  if(f&&t){const fd=new Date(f),td=new Date(t);selY=fd.getFullYear();selM=fd.getMonth();customLbl=`${fd.getDate()} ${MSS[fd.getMonth()]} – ${td.getDate()} ${MSS[td.getMonth()]} ${td.getFullYear()}`;closeAll();render();}
+};
+
+// (document click + panel stopPropagation listeners are registered in the second script block)
+
+// --- Auto-Fetch Recent Date on Load ---
+async function initApp() {
+    try {
+        const response = await fetch(`${API_BASE}/api/available-dates`);
+        const data = await response.json();
+        
+        if (data.dates && data.dates.length > 0) {
+            const latestDateStr = data.dates[0]; 
+            const [year, month, day] = latestDateStr.split('-');
+            
+            selY = parseInt(year);
+            selM = parseInt(month) - 1; 
+            selD = parseInt(day);
+            calY = selY;
+            calM = selM;
+            moPY = selY;
+        }
+    } catch (err) {
+        console.error("Failed to fetch available dates.", err);
+    }
+    render();
+}
+
+initApp();
+</script>
+<script>
+  // Automatically highlight the current page in the sidebar
+  const currentPath = window.location.pathname.split("/").pop();
+  document.querySelectorAll('.nav-item').forEach(item => {
+    // Check if the div's onclick attribute contains the current page name
+    if (item.getAttribute('onclick') && item.getAttribute('onclick').includes(currentPath)) {
+      item.classList.add('active');
+    }
+  });
+  // ---------------- DROPDOWN / CALENDAR FIX ----------------
+
+let openP = null;
+
+function closeAll() {
+    document.querySelectorAll('.panel').forEach(p => {
+        p.classList.remove('open');
+    });
+
+    document.querySelectorAll('.dpbtn,.site-btn').forEach(b => {
+        b.classList.remove('open');
+    });
+
+    openP = null;
+}
+
+function tog(pid, bid, event) {
+    if (event) {
+        event.stopPropagation();
+    }
+
+    const panel = document.getElementById(pid);
+    const button = document.getElementById(bid);
+
+    const isOpen = panel.classList.contains('open');
+
+    closeAll();
+
+    if (!isOpen) {
+        panel.classList.add('open');
+        button.classList.add('open');
+        openP = pid;
+
+        if (pid === 'cal-panel') buildCal();
+        if (pid === 'mo-panel') buildMoGrid();
+        if (pid === 'plant-panel') buildPlantItems();
+    }
+}
+
+// Close only when clicking outside
+document.addEventListener('click', function () {
+    closeAll();
+});
+
+// Prevent closing when clicking inside panels
+document.querySelectorAll('.panel').forEach(panel => {
+    panel.addEventListener('click', function (e) {
+        e.stopPropagation();
+    });
+});
+
+// Prevent closing when clicking buttons
+document.querySelectorAll('.dpbtn, .site-btn').forEach(btn => {
+    btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+    });
+});
+</script>
+
+<script>
+  function toggleReports(e){ if(e) e.stopPropagation(); var s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
+  (function(){var s=document.getElementById('reports-sub'); if(s && s.querySelector('.subitem.active')) s.classList.add('open');})();
+</script>
+</body>
+</html>
