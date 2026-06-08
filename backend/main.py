@@ -107,7 +107,7 @@ def _build_nrmse_response(rows):
         "R02": "DA2",
         # Quenext revision codes
         "R-16": "R16",
-        "Rd2":  "DA2",
+        "RD2":  "DA2",
         # Add any other variants you see in the DB:
         # "R16":  "R16",
         # "DA2":  "DA2",
@@ -143,7 +143,7 @@ _MONITOR_REV_MAP = {
     "R20": "R16",   # ISPL intra-day
     "R-16": "R16",  # Quenext intra-day
     "R02": "R02",   # ISPL day-ahead
-    "Rd2": "R02",   # Quenext day-ahead
+    "RD2": "R02",   # Quenext day-ahead
     "DA2": "R02",
     "R16": "R16",
 }
@@ -979,6 +979,89 @@ def daily_delivery_db(date: str = Query(None, description="forecast_date YYYY-MM
             "Quenext": _db_status_for("QUENEXT", target),
         },
     }
+# ── Daily Data Delivery: download R16 / DA2 forecast from DB as CSV ───────────
+# PASTE this block into main.py right AFTER the  daily_delivery_db()  function
+# (the  @app.get("/api/daily-delivery/db")  one), and BEFORE the daytime block.
+# Reuses _DB_TABLES, _resolve_table, get_connection, pandas (pd), Query, Response.
+
+# logical revision -> raw code stored in each company table
+_DB_REV_RAW = {
+    "ISPL":    {"R16": "R20",  "DA2": "R02"},
+    "QUENEXT": {"R16": "R-16", "DA2": "Rd2"},
+}
+
+
+def _fmt_csv_time(t):
+    if t is None:
+        return ""
+    if isinstance(t, str):
+        return t[:5]
+    try:
+        secs = int(t.total_seconds())
+        return f"{secs // 3600:02d}:{(secs % 3600) // 60:02d}"
+    except Exception:
+        return str(t)
+
+
+@app.get("/api/daily-delivery/db-download")
+def daily_delivery_db_download(
+    company: str = Query(..., description="ISPL or Quenext"),
+    revision: str = Query(..., description="R16 or DA2"),
+    date: str = Query(..., description="forecast_date YYYY-MM-DD"),
+):
+    """
+    Builds a CSV (block_time + one column per DSS, values = forecast_mw) for the
+    given company/revision/date, straight from the DB. Works anywhere the DB is
+    reachable (incl. Replit), unlike the SFTP file download.
+    """
+    comp = "QUENEXT" if "QUE" in company.upper() else "ISPL"
+    rev = revision.upper().replace("-", "").replace(" ", "")
+    rev = "DA2" if rev in ("DA2", "RD2", "R02") else "R16"
+
+    raw_rev = _DB_REV_RAW[comp][rev]
+    raw_norm = raw_rev.upper().replace("-", "").replace(" ", "")
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        table = _resolve_table(cursor, _DB_TABLES[comp])
+        if not table:
+            return JSONResponse({"error": f"No DB table for {comp}."}, status_code=404)
+        sql = f"""
+            SELECT dss_id, block_no, block_time, timestamp, forecast_mw
+            FROM `{table}`
+            WHERE forecast_date = %s
+              AND REPLACE(REPLACE(UPPER(revision_number), '-', ''), ' ', '') = %s
+            ORDER BY block_no, dss_id
+        """
+        cursor.execute(sql, (date, raw_norm))
+        rows = cursor.fetchall()
+    except Exception as e:
+        return JSONResponse({"error": f"DB query failed: {e}"}, status_code=500)
+    finally:
+        cursor.close()
+        conn.close()
+
+    if not rows:
+        return JSONResponse(
+            {"error": f"No {company} {revision} rows for {date}."}, status_code=404)
+
+    df = pd.DataFrame(rows)
+    df["block_time"] = df["block_time"].apply(_fmt_csv_time)
+    df["timestamp"] = df["timestamp"].astype(str)
+
+    pivot = df.pivot_table(
+        index=["block_no", "block_time", "timestamp"],
+        columns="dss_id", values="forecast_mw", aggfunc="first",
+    ).reset_index().sort_values("block_no")
+
+    csv_text = pivot.to_csv(index=False)
+    fname = f"{comp}_{rev}_{date}.csv"
+    return Response(
+        content=csv_text,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
 # ── Daytime 0/NULL check (solar can't be 0/null between 05:30 and 19:00) ──────
 # PASTE this block into main.py ABOVE the StaticFiles mount line:
 #     app.mount("/", StaticFiles(directory=ui_path, html=True), name="ui")
