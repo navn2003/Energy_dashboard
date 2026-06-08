@@ -730,7 +730,50 @@ def missing_report_pdf(date: str = Query(...)):
         return FileResponse(path=pdf_path, filename=pdf_file, media_type="application/pdf")
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+@app.get("/api/missing-report-csv")
+def missing_report_csv(date: str = Query(...)):
+    try:
+        conn = get_scada_connection()
+        plants = get_all_plants_scada(conn)
+        time_slots = pd.date_range(start=f"{date} 00:00:00", end=f"{date} 23:55:00", freq="5min")
+        total_slots = len(time_slots)
+        lookup, total_rows = get_scada_lookup(conn, date)
+        conn.close()
 
+        # Define CSV headers
+        lines = ["DSS_ID,Total Slots,Full Count,Partial Count,Missing Count,Availability %,Missing %,Missing Timestamps"]
+        
+        for plant in plants:
+            full, partial, missing, missing_times = 0, 0, 0, []
+            for ts in time_slots:
+                ts_str = ts.strftime("%Y-%m-%d %H:%M:%S")
+                status = lookup.get((ts_str, plant), "NO DATA")
+                if status == "FULL": 
+                    full += 1
+                elif status == "PARTIAL": 
+                    partial += 1
+                else:
+                    missing += 1
+                    missing_times.append(ts.strftime("%H:%M"))
+            
+            # Join timestamps with spaces and wrap the string in quotes to prevent CSV column splitting
+            missing_text = " ".join(missing_times)
+            avail_pct = round((full / total_slots) * 100, 2)
+            miss_pct = round((missing / total_slots) * 100, 2)
+            
+            # Append the row data
+            lines.append(f'{plant},{total_slots},{full},{partial},{missing},{avail_pct}%,{miss_pct}%,"{missing_text}"')
+
+        csv_text = "\n".join(lines)
+        fname = f"missing_scada_report_{date}.csv"
+        
+        return Response(
+            content=csv_text,
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+        )
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 @app.get("/api/monthly-missing-report-pdf")
 def monthly_missing_report_pdf(month: str = Query(...)):
     try:

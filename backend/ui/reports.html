@@ -100,6 +100,7 @@
                 <button class="blue" onclick="loadHeatmap()"><i class="ti ti-layout-grid"></i> Load Heatmap</button>
                 <button class="purple" onclick="loadMissingReport()"><i class="ti ti-file-report"></i> Missing Report</button>
                 <button class="red-btn" onclick="downloadDayPDF()"><i class="ti ti-file-type-pdf"></i> Download PDF</button>
+                <button class="green-btn" onclick="downloadDayCSV()"><i class="ti ti-file-type-csv"></i> Download CSV</button>
             </div>
 
             <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
@@ -258,6 +259,12 @@ function downloadMonthlyPDF() {
       item.classList.add('active');
     }
   });
+function downloadDayCSV() {
+    const date = getDateValue();
+    if (!date) return;
+    // Opens the new backend endpoint in a new tab to trigger the download
+    window.open(`${API_BASE}/api/missing-report-csv?date=${encodeURIComponent(date)}`, "_blank");
+}
 </script>
 
 <script>
