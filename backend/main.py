@@ -28,7 +28,65 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# ── Authentication (paste into main.py AFTER `app = FastAPI(...)` and any CORS  ──
+#    setup, and BEFORE/around your other routes — anywhere `app` already exists). ─
+import os, hmac, hashlib, base64, time
+from fastapi import Request
+from pydantic import BaseModel
 
+# Credentials & secret — OVERRIDE THESE VIA ENV (esp. on public Replit!).
+AUTH_USER   = os.getenv("AUTH_USER", "Admin")
+AUTH_PASS   = os.getenv("AUTH_PASS", "Energy@123")
+AUTH_SECRET = os.getenv("AUTH_SECRET", "please-change-this-long-random-secret-7f3a9c21")
+AUTH_TTL    = int(os.getenv("AUTH_TTL", "43200"))   # token lifetime in seconds (12h)
+
+# /api/ paths that do NOT require a token:
+_PUBLIC_API = {"/api/login"}
+
+
+def _make_token(username: str) -> str:
+    exp = int(time.time()) + AUTH_TTL
+    msg = f"{username}:{exp}"
+    sig = hmac.new(AUTH_SECRET.encode(), msg.encode(), hashlib.sha256).hexdigest()
+    return base64.urlsafe_b64encode(f"{msg}:{sig}".encode()).decode()
+
+
+def _verify_token(token: str):
+    try:
+        raw = base64.urlsafe_b64decode(token.encode()).decode()
+        username, exp, sig = raw.rsplit(":", 2)
+        if int(exp) < time.time():
+            return None
+        expected = hmac.new(AUTH_SECRET.encode(), f"{username}:{exp}".encode(),
+                            hashlib.sha256).hexdigest()
+        return username if hmac.compare_digest(sig, expected) else None
+    except Exception:
+        return None
+
+
+class _LoginIn(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/login")
+def api_login(body: _LoginIn):
+    if hmac.compare_digest(body.username, AUTH_USER) and hmac.compare_digest(body.password, AUTH_PASS):
+        return {"token": _make_token(body.username), "username": body.username}
+    return JSONResponse({"error": "Invalid username or password."}, status_code=401)
+
+
+@app.middleware("http")
+async def _auth_guard(request: Request, call_next):
+    path = request.url.path
+    # Only guard the API; static pages stay reachable so the login screen can load.
+    if path.startswith("/api/") and path not in _PUBLIC_API and request.method != "OPTIONS":
+        auth = request.headers.get("Authorization", "")
+        token = auth[7:] if auth.startswith("Bearer ") else ""
+        if not _verify_token(token):
+            return JSONResponse({"error": "Unauthorized", "auth_required": True},
+                                status_code=401)
+    return await call_next(request)
 # ── NRMSE endpoints ──────────────────────────────────────────────────────────
 
 @app.get("/api/nrmse/daily")
@@ -52,13 +110,11 @@ def get_nrmse_daily(date: str = Query(..., description="YYYY-MM-DD")):
 
 @app.get("/api/nrmse/monthly")
 def get_nrmse_monthly(year: int = Query(...), month: int = Query(...)):
-    """Returns average NRMSE values for a full month."""
+    """Returns precomputed monthly NRMSE values from monthly_nrmse_values."""
     sql = """
-        SELECT company, energy_type, revision_num,
-        AVG(nrmse_values) AS nrmse_values
-        FROM daily_nrmse_values
-        WHERE YEAR(date) = %s AND MONTH(date) = %s
-        GROUP BY company, energy_type, revision_num
+        SELECT company, energy_type, revision_num, nrmse_values
+        FROM monthly_nrmse_values
+        WHERE YEAR(`month`) = %s AND MONTH(`month`) = %s
         ORDER BY energy_type, company, revision_num
     """
     conn = get_connection()
@@ -68,8 +124,39 @@ def get_nrmse_monthly(year: int = Query(...), month: int = Query(...)):
     cursor.close()
     conn.close()
 
-    return _build_nrmse_response(rows)
+    return _build_monthly_nrmse_response(rows)
 
+
+def _build_monthly_nrmse_response(rows):
+    """
+    Builder used ONLY by the monthly endpoint (monthly_nrmse_values table).
+    ISPL:    R20 → R16,  R02 → DA2
+    Quenext: R-16 → R16, RD2 → DA2
+    """
+    MONTHLY_REV_MAP = {
+        "R20": "R16",
+        "R02": "DA2",
+        "R-16": "R16",
+        "RD2":  "DA2",
+    }
+
+    result = {"solar": {}, "wind": {}}
+
+    for row in rows:
+        company     = row["company"]
+        energy_type = row["energy_type"].lower()
+        rev_raw     = row["revision_num"]
+        nrmse_val   = float(row["nrmse_values"]) if row["nrmse_values"] is not None else None
+        rev_label   = MONTHLY_REV_MAP.get(rev_raw, rev_raw)
+
+        if energy_type not in result:
+            result[energy_type] = {}
+        if company not in result[energy_type]:
+            result[energy_type][company] = {}
+
+        result[energy_type][company][rev_label] = nrmse_val
+
+    return result
 
 @app.get("/api/nrmse/custom")
 def get_nrmse_custom(
