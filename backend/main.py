@@ -1010,13 +1010,6 @@ def download_daily_delivery(file: str = Query(..., description="DSS CSV filename
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{safe}"'},
     )
-# ════════════════════════════════════════════════════════════════════════════
-# PASTE THIS INTO main.py
-# Put it right after the  @app.get("/api/daily-delivery/download")  function,
-# and BEFORE the  "# --- ADD THIS TO THE VERY END OF main.py ---"  static mount.
-# Requires (already present in your file): get_connection, Query, JSONResponse,
-# and  from datetime import datetime as _dt  (added with the daily-delivery block).
-# ════════════════════════════════════════════════════════════════════════════
 
 # ── Daily Data Delivery: per-company DB load status ───────────────────────────
 _DB_EXPECTED_DSS = 212
@@ -1109,10 +1102,7 @@ def daily_delivery_db(date: str = Query(None, description="forecast_date YYYY-MM
             "Quenext": _db_status_for("QUENEXT", target),
         },
     }
-# ── Daily Data Delivery: download R16 / DA2 forecast from DB as CSV ───────────
-# PASTE this block into main.py right AFTER the  daily_delivery_db()  function
-# (the  @app.get("/api/daily-delivery/db")  one), and BEFORE the daytime block.
-# Reuses _DB_TABLES, _resolve_table, get_connection, pandas (pd), Query, Response.
+
 
 # logical revision -> raw code stored in each company table
 _DB_REV_RAW = {
@@ -1192,10 +1182,7 @@ def daily_delivery_db_download(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
-# ── Daytime 0/NULL check (solar can't be 0/null between 05:30 and 19:00) ──────
-# PASTE this block into main.py ABOVE the StaticFiles mount line:
-#     app.mount("/", StaticFiles(directory=ui_path, html=True), name="ui")
-#
+
 # Relies on already-present imports: get_connection, Query, JSONResponse.
 
 from datetime import datetime as _dtime, timedelta as _td
@@ -1299,7 +1286,250 @@ def daily_delivery_daytime_check(date: str = Query(..., description="Forecast da
         conn.close()
 
     return result
-# --- ADD THIS TO THE VERY END OF main.py ---
+# =============================================================================
+# ── SCADA DASHBOARD INTEGRATION ──────────────────────────────────────────────
+# =============================================================================
+import traceback
+from datetime import datetime, timedelta
+
+TABLE_NAME = "DSS_ACTUAL"
+SLOT_MINUTES = 5
+CHECK_SCADA_ONLY = True
+FORCE_212_PLANTS = True
+DSS_START = 1
+DSS_END = 213
+SKIP_DSS_IDS = {"DSS00093"}
+
+def dash_sort_key(dss_id):
+    try:
+        return int(str(dss_id).replace("DSS", ""))
+    except Exception:
+        return 999999
+
+def dash_build_forced_dss_list():
+    plants = []
+    for i in range(DSS_START, DSS_END + 1):
+        dss = f"DSS{i:05d}"
+        if dss not in SKIP_DSS_IDS:
+            plants.append(dss)
+    return plants
+
+def dash_get_band(availability):
+    if availability == 100: return "100%"
+    elif 95 <= availability < 100: return "95-99.99%"
+    elif 50 <= availability < 95: return "50-95%"
+    elif 0 < availability < 50: return "0-50%"
+    else: return "0%"
+
+def dash_get_period_range(report_date: str, period: str):
+    selected = datetime.strptime(report_date, "%Y-%m-%d")
+    if period == "daily":
+        return selected, selected + timedelta(days=1)
+    elif period == "weekly":
+        return selected - timedelta(days=6), selected + timedelta(days=1)
+    elif period == "monthly":
+        return selected - timedelta(days=29), selected + timedelta(days=1)
+    return selected, selected + timedelta(days=1)
+
+def dash_get_days_between(start_dt, end_dt):
+    days = []
+    current = start_dt
+    while current < end_dt:
+        days.append(current.strftime("%Y-%m-%d"))
+        current += timedelta(days=1)
+    return days
+
+def dash_get_slot_labels():
+    base = datetime.strptime("2000-01-01", "%Y-%m-%d")
+    slots_per_day = int(24 * 60 / SLOT_MINUTES)
+    return [(base + timedelta(minutes=i * SLOT_MINUTES)).strftime("%H:%M") for i in range(slots_per_day)]
+
+def dash_get_all_plants(cur):
+    plants_set = set()
+    try:
+        cur.execute("SELECT DISTINCT DSS_ID FROM DSS_MASTER WHERE DSS_ID IS NOT NULL AND DSS_ID <> ''")
+        for r in cur.fetchall(): plants_set.add(str(r["DSS_ID"]))
+    except Exception:
+        pass
+
+    cur.execute(f"SELECT DISTINCT DSS_ID FROM {TABLE_NAME} WHERE DSS_ID IS NOT NULL AND DSS_ID <> ''")
+    for r in cur.fetchall(): plants_set.add(str(r["DSS_ID"]))
+
+    if FORCE_212_PLANTS:
+        for dss in dash_build_forced_dss_list(): plants_set.add(dss)
+
+    for dss in SKIP_DSS_IDS: plants_set.discard(dss)
+    return sorted(plants_set, key=dash_sort_key)
+
+
+@app.get("/api/check-db")
+def check_db():
+    try:
+        conn = get_scada_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT DATABASE() AS db_name")
+            db = cur.fetchone()
+            cur.execute(f"SELECT COUNT(*) AS total_rows FROM {TABLE_NAME}")
+            rows = cur.fetchone()
+            cur.execute(f"SELECT MIN(TIMESTAMP) AS min_time, MAX(TIMESTAMP) AS max_time FROM {TABLE_NAME}")
+            time_range = cur.fetchone()
+            try:
+                cur.execute("SELECT COUNT(DISTINCT DSS_ID) AS master_plants FROM DSS_MASTER WHERE DSS_ID IS NOT NULL AND DSS_ID <> ''")
+                master_count = cur.fetchone()
+                master_plants = int(master_count["master_plants"])
+            except Exception:
+                master_plants = 0
+            cur.execute(f"SELECT COUNT(DISTINCT DSS_ID) AS actual_plants FROM {TABLE_NAME} WHERE DSS_ID IS NOT NULL AND DSS_ID <> ''")
+            actual_count = cur.fetchone()
+        conn.close()
+
+        return {
+            "status": "connected", "database": db["db_name"], "table": TABLE_NAME,
+            "total_rows": int(rows["total_rows"]), "min_time": str(time_range["min_time"]),
+            "max_time": str(time_range["max_time"]), "distinct_plants_in_DSS_MASTER": master_plants,
+            "distinct_plants_in_DSS_ACTUAL": int(actual_count["actual_plants"]),
+            "forced_dashboard_plants": len(dash_build_forced_dss_list()) if FORCE_212_PLANTS else "disabled",
+            "slot_minutes": SLOT_MINUTES
+        }
+    except Exception as e:
+        return JSONResponse({"status": "error", "error": str(e), "traceback": traceback.format_exc()}, status_code=500)
+
+
+@app.get("/api/plant-list")
+def plant_list():
+    try:
+        conn = get_scada_connection()
+        with conn.cursor() as cur:
+            plants = dash_get_all_plants(cur)
+        conn.close()
+        return {"plant_count": len(plants), "plants": plants}
+    except Exception as e:
+        return JSONResponse({"error": str(e), "traceback": traceback.format_exc()}, status_code=500)
+
+
+@app.get("/api/dashboard")
+def dashboard_api(report_date: str = Query(...), period: str = Query("daily")):
+    try:
+        period = period.lower().strip()
+        if period not in ["daily", "weekly", "monthly"]: period = "daily"
+
+        start_dt, end_dt = dash_get_period_range(report_date, period)
+        days = dash_get_days_between(start_dt, end_dt)
+        start_str, end_str = start_dt.strftime("%Y-%m-%d %H:%M:%S"), end_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        slot_labels = dash_get_slot_labels()
+        slots_per_day, total_days = len(slot_labels), len(days)
+
+        conn = get_scada_connection()
+        with conn.cursor() as cur:
+            plants = dash_get_all_plants(cur)
+            cur.execute(f"SELECT DSS_ID, TIMESTAMP, SCADA_POWER_MW, METER_POWER_MW FROM {TABLE_NAME} WHERE TIMESTAMP >= %s AND TIMESTAMP < %s", (start_str, end_str))
+            db_rows = cur.fetchall()
+        conn.close()
+
+        total_plants = len(plants)
+        expected_slots_per_plant = slots_per_day * total_days
+        total_expected_slots = total_plants * expected_slots_per_plant
+
+        data_map = {}
+        for row in db_rows:
+            dss_id, ts = str(row["DSS_ID"]), row["TIMESTAMP"]
+            if isinstance(ts, str): ts = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+            day, time_label = ts.strftime("%Y-%m-%d"), ts.strftime("%H:%M")
+            scada_ok, meter_ok = row["SCADA_POWER_MW"] is not None, row["METER_POWER_MW"] is not None
+
+            if CHECK_SCADA_ONLY: status = "available" if scada_ok else "missing"
+            else:
+                if scada_ok and meter_ok: status = "available"
+                elif scada_ok or meter_ok: status = "partial"
+                else: status = "missing"
+
+            data_map.setdefault(dss_id, {}).setdefault(day, {})[time_label] = status
+
+        plant_summary, missing_by_time_total = [], {t: 0 for t in slot_labels}
+        daily_available_slots, daily_missing_slots = {day: 0 for day in days}, {day: 0 for day in days}
+        daily_missing_plants, daily_full_missing_plants = {day: 0 for day in days}, {day: 0 for day in days}
+
+        for dss_id in plants:
+            plant_available, plant_partial, plant_missing = 0, 0, 0
+            for day in days:
+                day_status = data_map.get(dss_id, {}).get(day, {})
+                plant_day_missing = 0
+                for t in slot_labels:
+                    status = day_status.get(t, "missing")
+                    if status == "available":
+                        plant_available += 1
+                        daily_available_slots[day] += 1
+                    elif status == "partial":
+                        plant_partial += 1
+                        plant_day_missing += 1
+                        daily_missing_slots[day] += 1
+                        missing_by_time_total[t] += 1
+                    else:
+                        plant_missing += 1
+                        plant_day_missing += 1
+                        daily_missing_slots[day] += 1
+                        missing_by_time_total[t] += 1
+
+                if plant_day_missing > 0: daily_missing_plants[day] += 1
+                if plant_day_missing == slots_per_day: daily_full_missing_plants[day] += 1
+
+            availability = round((plant_available / expected_slots_per_plant) * 100, 2)
+            missing_pct = round((plant_missing / expected_slots_per_plant) * 100, 2)
+            plant_summary.append({
+                "DSS_ID": dss_id, "Total Slots": int(expected_slots_per_plant),
+                "Full": int(plant_available), "Partial": int(plant_partial), "Missing": int(plant_missing),
+                "Availability %": float(availability), "Missing %": float(missing_pct), "Band": dash_get_band(availability)
+            })
+
+        total_available_slots = sum(r["Full"] for r in plant_summary)
+        total_missing_slots = sum(r["Missing"] for r in plant_summary)
+        avg_availability = round((total_available_slots / total_expected_slots) * 100, 2) if total_expected_slots else 0
+        full_day_missing_cases = sum(daily_full_missing_plants.values())
+        worst_row = sorted(plant_summary, key=lambda x: (x["Availability %"], -x["Missing"]))[0]
+
+        band_order = ["100%", "95-99.99%", "50-95%", "0-50%", "0%"]
+        band_desc = {
+            "100%": "All data available", "95-99.99%": "High availability with minor gaps",
+            "50-95%": "Partial degradation", "0-50%": "Low availability / major gaps", "0%": "No data available",
+        }
+
+        availability_distribution = [{"band": band, "plants": int(sum(1 for r in plant_summary if r["Band"] == band)), "percent": float(round((sum(1 for r in plant_summary if r["Band"] == band) / total_plants) * 100, 2)), "description": band_desc[band]} for band in band_order]
+        top_worst = sorted(plant_summary, key=lambda x: (x["Missing %"], x["Missing"]), reverse=True)[:20]
+        missing_time_series = [{"time": t, "missing_plants": round(missing_by_time_total[t] / total_days, 2) if total_days else 0} for t in slot_labels]
+
+        slot_distribution = [
+            {"name": "0 Missing", "plants": int(sum(1 for r in plant_summary if r["Missing"] == 0))},
+            {"name": "1-10 Missing", "plants": int(sum(1 for r in plant_summary if 1 <= r["Missing"] <= 10))},
+            {"name": "11-50 Missing", "plants": int(sum(1 for r in plant_summary if 11 <= r["Missing"] <= 50))},
+            {"name": "51-287 Missing", "plants": int(sum(1 for r in plant_summary if 51 <= r["Missing"] <= 287))},
+            {"name": "288+ Missing", "plants": int(sum(1 for r in plant_summary if r["Missing"] >= 288))},
+        ]
+
+        daily_trend = []
+        for day in days:
+            expected_day_slots = total_plants * slots_per_day
+            avail_pct = round((daily_available_slots[day] / expected_day_slots) * 100, 2) if expected_day_slots else 0
+            daily_trend.append({"date": day, "availability": float(avail_pct), "missing_slots": int(daily_missing_slots[day]), "missing_plants": int(daily_missing_plants[day]), "full_day_missing_plants": int(daily_full_missing_plants[day])})
+
+        return {
+            "report_date": report_date, "period": period, "start_date": start_dt.strftime("%Y-%m-%d"),
+            "end_date": (end_dt - timedelta(days=1)).strftime("%Y-%m-%d"), "slot_minutes": int(SLOT_MINUTES),
+            "kpis": {
+                "total_plants": int(total_plants), "days": int(total_days), "slots_per_day": int(slots_per_day),
+                "expected_slots_per_plant": int(expected_slots_per_plant), "total_expected_slots": int(total_expected_slots),
+                "total_db_rows": int(len(db_rows)), "total_missing_slots": int(total_missing_slots),
+                "full_day_missing_cases": int(full_day_missing_cases), "avg_availability": float(avg_availability),
+                "worst_plant": worst_row["DSS_ID"], "worst_plant_availability": float(worst_row["Availability %"]),
+                "worst_plant_missing": int(worst_row["Missing"])
+            },
+            "availability_distribution": availability_distribution, "top_worst": top_worst,
+            "missing_time_series": missing_time_series, "slot_distribution": slot_distribution, "daily_trend": daily_trend
+        }
+
+    except Exception as e:
+        print(traceback.format_exc())
+        return JSONResponse({"error": str(e), "traceback": traceback.format_exc()}, status_code=500)
 # This tells FastAPI that your HTML files are in the 'ui' folder
 ui_path = os.path.join(os.path.dirname(__file__), "ui")
 if os.path.exists(ui_path):

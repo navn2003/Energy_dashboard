@@ -64,7 +64,7 @@
   const err = document.getElementById('err');
 
   // If already signed in, skip the form.
-  if (sessionStorage.getItem('auth_token')) location.replace('daily_data_delivery.html');
+  if (sessionStorage.getItem('auth_token')) location.replace('nrmse_live.html');
 
   async function login(){
     err.style.display = 'none';
@@ -78,7 +78,7 @@
       const data = await res.json();
       if(res.ok && data.token){
         sessionStorage.setItem('auth_token', data.token);
-        location.replace('daily_data_delivery.html');   // landing page after login
+        location.replace('nrmse_live.html');   // landing page after login
       }else{
         err.textContent = data.error || 'Sign in failed.';
         err.style.display = 'block';
