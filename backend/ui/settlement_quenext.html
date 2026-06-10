@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="auth.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quenext Settlement</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#0d0f14;color:#e2e8f0;font-family:var(--font-sans,system-ui,-apple-system,sans-serif);}
+  .app{display:flex;min-height:100vh;}
+
+  /* Sidebar */
+  .sidebar{width:172px;background:#111318;border-right:0.5px solid #2a2d36;padding:14px 0;flex-shrink:0;}
+  .slogo{display:flex;align-items:center;gap:8px;padding:0 12px 14px;border-bottom:0.5px solid #2a2d36;}
+  .slogo-icon{width:26px;height:26px;background:#0ea5e9;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+  .slogo-t{font-size:11px;font-weight:600;color:#e2e8f0;line-height:1.2;}
+  .slogo-s{font-size:9px;color:#6b7280;}
+  .nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#6b7280;cursor:pointer;text-decoration:none;}
+  .nav-item:hover{color:#cbd5e1;background:#1a1d25;}
+  .nav-item.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
+  .nav-item i{font-size:14px;}
+  .submenu{display:none;flex-direction:column;background:#0d0f14;}
+  .submenu.open{display:flex;}
+  .subitem{display:flex;align-items:center;gap:8px;padding:7px 12px 7px 30px;font-size:11px;color:#6b7280;cursor:pointer;text-decoration:none;}
+  .subitem:hover{color:#cbd5e1;background:#1a1d25;}
+  .subitem.active{color:#38bdf8;}
+  .smeta{padding:10px 12px 0;border-top:0.5px solid #2a2d36;margin-top:10px;font-size:9px;color:#4b5563;line-height:1.7;}
+
+  /* Main */
+  .main{flex:1;padding:24px;overflow-y:auto;}
+  .ptitle{font-size:20px;font-weight:600;margin-bottom:4px;}
+  .psub{font-size:12px;color:#94a3b8;margin-bottom:22px;}
+
+  .layout{display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start;}
+  @media(max-width:900px){.layout{grid-template-columns:1fr;}}
+
+  .card{background:#111318;border:0.5px solid #2a2d36;border-radius:10px;padding:18px;}
+  .card h3{font-size:13px;font-weight:600;margin-bottom:16px;}
+  .fld{margin-bottom:14px;}
+  .fld label{display:block;font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+  .inp{width:100%;background:#0d0f14;border:1px solid #2a2d36;color:#e2e8f0;padding:9px 11px;border-radius:6px;font-size:13px;outline:none;}
+  .inp:focus{border-color:#38bdf8;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+  .preview{background:#0d0f14;border:1px solid #2a2d36;border-radius:8px;padding:12px;margin:6px 0 16px;}
+  .preview-t{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;}
+  .preview-row{display:flex;justify-content:space-between;font-size:12px;margin:3px 0;}
+
+  .btns{display:flex;gap:10px;}
+  .btn{flex:1;border:none;padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;}
+  .btn-ghost{background:#1a1d25;color:#cbd5e1;border:1px solid #2a2d36;}
+  .btn-ghost:hover{background:#222633;}
+  .btn-primary{background:#38bdf8;color:#06141f;}
+  .btn-primary:hover{background:#0ea5e9;}
+
+  /* Result cards */
+  .res-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .res-title{font-size:14px;font-weight:600;}
+  .big-payout{font-size:30px;font-weight:700;color:#22c55e;line-height:1;}
+  .big-sub{font-size:12px;color:#6b7280;margin-top:2px;}
+
+  table.kv{width:100%;border-collapse:collapse;font-size:12px;}
+  table.kv td{padding:7px 4px;border-bottom:1px solid #1a1d25;}
+  table.kv td:last-child{text-align:right;color:#cbd5e1;font-weight:600;}
+  .sec-label{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px;}
+  .total-row td{border-top:1px solid #2a2d36;border-bottom:none;font-weight:700;padding-top:10px;}
+  .total-row td:last-child{color:#22c55e;font-size:14px;}
+
+  .nrmse-val{display:flex;justify-content:space-between;font-size:12px;padding:6px 4px;border-bottom:1px solid #1a1d25;}
+  .tag{font-size:10px;font-weight:700;padding:1px 7px;border-radius:99px;margin-left:8px;}
+  .tag.green{background:rgba(34,197,94,.15);color:#22c55e;}
+  .tag.yellow{background:rgba(234,179,8,.15);color:#eab308;}
+  .tag.red{background:rgba(239,68,68,.15);color:#ef4444;}
+  .muted{color:#6b7280;}
+  .empty{color:#6b7280;font-size:13px;padding:40px;text-align:center;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="slogo">
+      <div class="slogo-icon"><i class="ti ti-bolt" style="color:#fff;font-size:13px"></i></div>
+      <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="nav-item"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+      <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+
+      <div class="nav-item" id="settle-toggle" onclick="toggleSettle(event)">
+        <i class="ti ti-receipt-2"></i> Settlement
+        <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="settle-sub">
+        <div class="subitem" onclick="window.location.href='settlement_ispl.html'"><i class="ti ti-building-factory"></i> ISPL</div>
+        <div class="subitem active" onclick="window.location.href='settlement_quenext.html'"><i class="ti ti-building-factory-2"></i> Quenext</div>
+        <div class="subitem" onclick="window.location.href='settlement_comparison.html'"><i class="ti ti-arrows-diff"></i> Comparison</div>
+      </div>
+
+      <div class="nav-item"><i class="ti ti-database"></i> Data Entry</div>
+      <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+        <i class="ti ti-file-analytics"></i> Reports
+        <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="reports-sub">
+        <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
+        <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+        <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
+      </div>
+      <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+    </div>
+    <div class="smeta">ISPL · Quenext · Solar · Wind<br>DA2 · R16 · Settlement v1</div>
+  </div>
+
+  <div class="main">
+    <div class="ptitle">Quenext — Settlement Calculation</div>
+    <div class="psub">Calculate performance-linked payout for Quenext.</div>
+
+    <div class="layout">
+      <!-- Left: inputs -->
+      <div class="card">
+        <h3><i class="ti ti-adjustments"></i> Contract Parameters</h3>
+
+        <div class="row2">
+          <div class="fld">
+            <label>Year</label>
+            <input class="inp" type="number" id="in-year" value="2026">
+          </div>
+          <div class="fld">
+            <label>Month</label>
+            <select class="inp" id="in-month"></select>
+          </div>
+        </div>
+
+        <div class="fld">
+          <label>Total Contract Price (P) — INR</label>
+          <input class="inp" type="number" id="in-price" value="200000" step="0.01">
+        </div>
+        <div class="fld">
+          <label>Installed Solar Capacity (S) — MW</label>
+          <input class="inp" type="number" id="in-solar" value="120" step="0.01">
+        </div>
+        <div class="fld">
+          <label>Installed Wind Capacity (W) — MW</label>
+          <input class="inp" type="number" id="in-wind" value="80" step="0.01">
+        </div>
+
+        <div class="preview">
+          <div class="preview-t">Pro-Rata Allocation Preview</div>
+          <div class="preview-row"><span id="pv-solar-lbl" style="color:#a78bfa;">Solar</span><span id="pv-solar">—</span></div>
+          <div class="preview-row"><span id="pv-wind-lbl" style="color:#38bdf8;">Wind</span><span id="pv-wind">—</span></div>
+        </div>
+
+        <div class="btns">
+          <button class="btn btn-ghost"><i class="ti ti-device-floppy"></i> Save</button>
+          <button class="btn btn-primary" onclick="calculate()"><i class="ti ti-calculator"></i> Calculate</button>
+        </div>
+      </div>
+
+      <!-- Right: results -->
+      <div class="card" id="result-card">
+        <div class="empty" id="result-empty">Enter parameters and click <b>Calculate</b> to see the Quenext payout breakdown.</div>
+        <div id="result-body" style="display:none;">
+          <div class="res-head">
+            <div>
+              <div class="res-title" id="r-title">Quenext Payout — <span id="r-period"></span></div>
+              <div class="big-payout" id="r-total">—</div>
+              <div class="big-sub" id="r-total-sub"></div>
+            </div>
+          </div>
+
+          <div class="sec-label">NRMSE Values</div>
+          <div id="r-nrmse"></div>
+
+          <div class="sec-label">Payout Components</div>
+          <table class="kv" id="r-components"></table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = "http://localhost:8000";   // match your other pages; use "" on Replit
+const COMPANY = "Quenext";
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+// sidebar dropdowns
+function toggleSettle(e){ if(e) e.stopPropagation(); const s=document.getElementById('settle-sub'); if(s) s.classList.toggle('open'); }
+function toggleReports(e){ if(e) e.stopPropagation(); const s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
+(function(){ const s=document.getElementById('settle-sub'); if(s && s.querySelector('.subitem.active')) s.classList.add('open'); })();
+
+// month dropdown
+(function(){
+  const sel=document.getElementById('in-month');
+  MONTHS.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i+1; o.textContent=m; sel.appendChild(o); });
+  sel.value = new Date().getMonth()+1;
+})();
+
+const inr = n => "₹" + Number(n).toLocaleString('en-IN', {maximumFractionDigits:0});
+function lakhs(n){ const v = Number(n)/100000; return "₹" + v.toFixed(2) + "L"; }
+
+// live pro-rata preview
+function updatePreview(){
+  const P = parseFloat(document.getElementById('in-price').value)||0;
+  const S = parseFloat(document.getElementById('in-solar').value)||0;
+  const W = parseFloat(document.getElementById('in-wind').value)||0;
+  const tot = S + W;
+  const solarShare = tot>0 ? S/tot : 0;
+  const windShare  = tot>0 ? W/tot : 0;
+  document.getElementById('pv-solar-lbl').textContent = `Solar (${(solarShare*100).toFixed(1)}%)`;
+  document.getElementById('pv-wind-lbl').textContent  = `Wind (${(windShare*100).toFixed(1)}%)`;
+  document.getElementById('pv-solar').textContent = lakhs(P*solarShare);
+  document.getElementById('pv-wind').textContent  = lakhs(P*windShare);
+}
+['in-price','in-solar','in-wind'].forEach(id=>document.getElementById(id).addEventListener('input', updatePreview));
+updatePreview();
+
+async function fetchNrmse(year, month){
+  const res = await fetch(`${API_BASE}/api/nrmse/monthly?year=${year}&month=${month}`);
+  return await res.json();   // { solar:{ISPL:{R16,DA2},...}, wind:{...} }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// PLACEHOLDER PAYOUT MATH — replace computeSettlement() once you give me the
+// real formula. Right now it only lays out the structure using the NRMSE +
+// the pro-rata split, with components zeroed so the UI renders.
+// ───────────────────────────────────────────────────────────────────────────
+function computeSettlement(params, nrmse){
+  const { P, S, W } = params;
+  const tot = S + W;
+  const solarAlloc = tot>0 ? P*(S/tot) : 0;
+  const windAlloc  = tot>0 ? P*(W/tot) : 0;
+
+  // TODO: real formula goes here (base + VDA + VID per NRMSE band, etc.)
+  const components = [
+    {label:"Solar Alloc", value: solarAlloc},
+    {label:"Wind Alloc",  value: windAlloc},
+    {label:"Solar Base",  value: 0},
+    {label:"Wind Base",   value: 0},
+    {label:"VDA Solar",   value: 0},
+    {label:"VID Solar",   value: 0},
+    {label:"VDA Wind",    value: 0},
+    {label:"VID Wind",    value: 0},
+  ];
+  const total = 0;   // TODO: sum per real formula
+  return { components, total };
+}
+
+function bandTag(){ return ""; }  // TODO: color band per NRMSE thresholds when formula is known
+
+async function calculate(){
+  const year  = parseInt(document.getElementById('in-year').value);
+  const month = parseInt(document.getElementById('in-month').value);
+  const P = parseFloat(document.getElementById('in-price').value)||0;
+  const S = parseFloat(document.getElementById('in-solar').value)||0;
+  const W = parseFloat(document.getElementById('in-wind').value)||0;
+
+  let nrmse;
+  try { nrmse = await fetchNrmse(year, month); }
+  catch(e){ alert("Could not load NRMSE from server."); return; }
+
+  const solar = (nrmse.solar||{})[COMPANY] || {};
+  const wind  = (nrmse.wind ||{})[COMPANY] || {};
+
+  const result = computeSettlement({P,S,W}, {solar,wind});
+
+  // header
+  document.getElementById('r-period').textContent = `${MONTHS[month-1]} ${year}`;
+  document.getElementById('r-total').textContent = lakhs(result.total);
+  document.getElementById('r-total-sub').textContent = inr(result.total);
+
+  // NRMSE rows
+  const fmt = v => (v===undefined||v===null) ? '<span class="muted">—</span>' : v.toFixed(4)+'%';
+  document.getElementById('r-nrmse').innerHTML = `
+    <div class="nrmse-val"><span>Solar DA2</span><span>${fmt(solar.DA2)}</span></div>
+    <div class="nrmse-val"><span>Solar R16</span><span>${fmt(solar.R16)}</span></div>
+    <div class="nrmse-val"><span>Wind DA2</span><span>${fmt(wind.DA2)}</span></div>
+    <div class="nrmse-val"><span>Wind R16</span><span>${fmt(wind.R16)}</span></div>`;
+
+  // components
+  let rows = result.components.map(c =>
+    `<tr><td>${c.label}</td><td>${inr(c.value)}</td></tr>`).join('');
+  rows += `<tr class="total-row"><td>Total Payout</td><td>${lakhs(result.total)}</td></tr>`;
+  document.getElementById('r-components').innerHTML = rows;
+
+  document.getElementById('result-empty').style.display = 'none';
+  document.getElementById('result-body').style.display = 'block';
+}
+</script>
+</body>
+</html>

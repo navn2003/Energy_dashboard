@@ -84,7 +84,15 @@
         <div style="margin-top:10px;">
             <div class="nav-item"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
             <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
-            <div class="nav-item"><i class="ti ti-receipt-2"></i> Settlement</div>
+            <div class="nav-item" id="settle-toggle" onclick="toggleSettle(event)">
+                <i class="ti ti-receipt-2"></i> Settlement
+                <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+            </div>
+            <div class="submenu" id="settle-sub">
+                <div class="subitem" onclick="window.location.href='settlement_ispl.html'"><i class="ti ti-building-factory"></i> ISPL</div>
+                <div class="subitem" onclick="window.location.href='settlement_quenext.html'"><i class="ti ti-building-factory-2"></i> Quenext</div>
+                <div class="subitem" onclick="window.location.href='settlement_comparison.html'"><i class="ti ti-arrows-diff"></i> Comparison</div>
+            </div>
             <div class="nav-item"><i class="ti ti-database"></i> Data Entry</div>
             
             <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
@@ -94,7 +102,6 @@
             <div class="submenu" id="reports-sub">
                 <!-- Moved Dashboard into Reports -->
                 <div class="subitem" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
-                
                 <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
                 <div class="subitem active" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
                 <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
@@ -272,8 +279,10 @@ function downloadDayCSV() {
     window.open(`${API_BASE}/api/missing-report-csv?date=${encodeURIComponent(date)}`, "_blank");
 }
 
+function toggleSettle(e){ if(e) e.stopPropagation(); var s=document.getElementById('settle-sub'); if(s) s.classList.toggle('open'); }
 function toggleReports(e){ if(e) e.stopPropagation(); var s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
 (function(){var s=document.getElementById('reports-sub'); if(s && s.querySelector('.subitem.active')) s.classList.add('open');})();
+(function(){var s=document.getElementById('settle-sub'); if(s && s.querySelector('.subitem.active')) s.classList.add('open');})();
 
 // Highlight active path
 const currentPath = window.location.pathname.split("/").pop();

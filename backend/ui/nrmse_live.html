@@ -142,7 +142,7 @@
     .submenu.open{display:flex;}
     .subitem{display:flex;align-items:center;gap:8px;padding:7px 12px 7px 30px;font-size:11px;color:#6b7280;cursor:pointer;text-decoration:none;}
     .subitem:hover{color:#cbd5e1;background:#1a1d25;}
-    .subitem.active{color:#6b7280;}
+    .subitem.active{color:#38bdf8;}
 </style>
 </head>
 <body>
@@ -153,27 +153,29 @@
     <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
   </div>
   <div style="margin-top:10px;">
-            <div class="nav-item"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
-            <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
-            <div class="nav-item"><i class="ti ti-receipt-2"></i> Settlement</div>
-            <div class="nav-item"><i class="ti ti-database"></i> Data Entry</div>
-            
-            <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
-                <i class="ti ti-file-analytics"></i> Reports
-                <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
-            </div>
-            <div class="submenu" id="reports-sub">
-                <!-- Moved Dashboard into Reports -->
-                <div class="subitem" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
-                
-                <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
-                <div class="subitem active" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
-                <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
-            </div>
-            
-            <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
-            <div class="nav-item" onclick="logout()"><i class="ti ti-logout"></i> Logout</div>
-        </div>
+  <div class="nav-item"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+  <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+        <div class="nav-item" id="settle-toggle" onclick="toggleSettle(event)">
+        <i class="ti ti-receipt-2"></i> Settlement
+        <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="settle-sub">
+        <div class="subitem" onclick="window.location.href='settlement_ispl.html'"><i class="ti ti-building-factory"></i> ISPL</div>
+        <div class="subitem" onclick="window.location.href='settlement_quenext.html'"><i class="ti ti-building-factory-2"></i> Quenext</div>
+        <div class="subitem" onclick="window.location.href='settlement_comparison.html'"><i class="ti ti-arrows-diff"></i> Comparison</div>
+      </div>
+  <div class="nav-item"><i class="ti ti-database"></i> Data Entry</div>
+        <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+        <i class="ti ti-file-analytics"></i> Reports
+        <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="reports-sub">
+        <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+        <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
+        <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
+      </div>
+  <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+</div>
   <div class="smeta">ISPL · Quenext · Solar · Wind<br>DA2 · R16 · NRMSE Engine v1</div>
 </div>
 
@@ -676,6 +678,7 @@ document.querySelectorAll('.dpbtn, .site-btn').forEach(btn => {
 </script>
 
 <script>
+  function toggleSettle(e){ if(e) e.stopPropagation(); var s=document.getElementById('settle-sub'); if(s) s.classList.toggle('open'); }
   function toggleReports(e){ if(e) e.stopPropagation(); var s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
   (function(){var s=document.getElementById('reports-sub'); if(s && s.querySelector('.subitem.active')) s.classList.add('open');})();
 </script>
