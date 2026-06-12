@@ -1,412 +1,1071 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script src="auth.js"></script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SCADA Missing Data Dashboard</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Forecast Analysis Dashboard</title>
+<script src="auth.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <style>
-        /* Chart.defaults.color = '#94a3b8'; */
-        /* Shared App Styling & Dark Sidebar */
-        *{box-sizing:border-box;margin:0;padding:0;}
-        .app{display:flex;min-height:100vh;background:#0d0f14;overflow:hidden;font-family:var(--font-sans, system-ui, -apple-system, sans-serif);}
-        
-        .sidebar{width:172px;background:#111318;border-right:0.5px solid #2a2d36;padding:14px 0;flex-shrink:0;}
-        .slogo{display:flex;align-items:center;gap:8px;padding:0 12px 14px;border-bottom:0.5px solid #2a2d36;}
-        .slogo-icon{width:26px;height:26px;background:#0ea5e9;border-radius:5px;display:flex;align-items:center;justify-content:center;}
-        .slogo-t{font-size:11px;font-weight:600;color:#e2e8f0;line-height:1.2;}
-        .slogo-s{font-size:9px;color:#6b7280;}
-        .nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#6b7280;cursor:pointer; text-decoration: none;}
-        .nav-item:hover{color:#cbd5e1;background:#1a1d25;}
-        .nav-item.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
-        .nav-item i{font-size:14px;}
-        .smeta{padding:10px 12px 0;border-top:0.5px solid #2a2d36;margin-top:10px;font-size:9px;color:#4b5563;line-height:1.7;}
-        .submenu{display:none;flex-direction:column;background:#0d0f14;}
-        .submenu.open{display:flex;}
-        .subitem{display:flex;align-items:center;gap:8px;padding:7px 12px 7px 30px;font-size:11px;color:#6b7280;cursor:pointer;text-decoration:none;}
-        .subitem:hover{color:#cbd5e1;background:#1a1d25;}
-        .subitem.active{color:#38bdf8;}
+<style>
+/* ================= BASE STYLES (Matched to nrmse_live) ================= */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
 
-        /* Main Dashboard Area (Dark Theme Adapted) */
-        .main{flex:1;padding:22px;overflow-y:auto; color: #e2e8f0;}
+body {
+    background: #0d0f14;
+    color: #e2e8f0;
+    font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+    overflow-x: hidden;
+}
 
-        .header { display: flex; justify-content: space-between; align-items: center; }
-        .title { font-size: 26px; font-weight: 700; color: #e2e8f0; }
-        .subtitle { font-size: 13px; margin-top: 6px; color: #94a3b8; }
+.app {
+    display: flex;
+    min-height: 100vh;
+    background: #0d0f14;
+    overflow: hidden;
+}
 
-        .controls { display: flex; gap: 10px; align-items: center; }
-        input, select, button { 
-            padding: 9px 12px; 
-            border: 1px solid #2a2d36; 
-            border-radius: 6px; 
-            background: #0d0f14; 
-            color: #e2e8f0;
-            font-size: 13px; 
-        }
-        input:focus, select:focus { outline: none; border-color: #38bdf8; }
-        button { background: #38bdf8; color: #0f172a; font-weight: 600; border: none; cursor: pointer; transition: 0.2s;}
-        button:hover { background: #0ea5e9; }
+/* ================= SIDEBAR ================= */
+.sidebar {
+    width: 172px; /* Matched exactly to nrmse_live.html */
+    background: #111318;
+    border-right: 0.5px solid #2a2d36;
+    padding: 14px 0;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    height: 100vh;
+}
 
-        .range-box { margin-top: 16px; padding: 12px 14px; border: 1px solid #38bdf8; background: #1a2535; color: #38bdf8; border-radius: 8px; font-size: 12px; font-weight: 600; }
+.slogo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px 14px;
+    border-bottom: 0.5px solid #2a2d36;
+    margin-bottom: 6px;
+}
 
-        .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-top: 20px; }
-        .kpi-card { background: #111318; border: 1px solid #2a2d36; border-radius: 8px; padding: 16px; }
-        .kpi-title { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-        .kpi-value { font-size: 24px; margin-top: 8px; font-weight: 700; color: #38bdf8; }
-        .kpi-note { font-size: 11px; margin-top: 6px; color: #6b7280; }
+.slogo-icon {
+    width: 26px;
+    height: 26px;
+    background: #0ea5e9;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
-        .grid-3 { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 16px; margin-top: 16px; }
+.slogo-t { font-size: 11px; font-weight: 600; color: #e2e8f0; line-height: 1.2; }
+.slogo-s { font-size: 9px; color: #6b7280; }
 
-        .card { background: #111318; border: 1px solid #2a2d36; border-radius: 8px; padding: 16px; }
-        .card-title { font-size: 14px; font-weight: 600; margin-bottom: 15px; color: #e2e8f0; }
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #6b7280;
+    cursor: pointer;
+    text-decoration: none;
+    background: none;
+    border: none;
+    text-align: left;
+    width: 100%;
+}
 
-        .availability-bar { display: flex; height: 28px; border-radius: 6px; overflow: hidden; margin: 16px 0; background: #1a1d25; border: 1px solid #2a2d36; }
-        
-        .seg-green { background: #16a34a; }
-        .seg-lightgreen { background: #22c55e; }
-        .seg-yellow { background: #facc15; }
-        .seg-orange { background: #fb923c; }
-        .seg-red { background: #ef4444; }
+.nav-item:hover { color: #cbd5e1; background: #1a1d25; }
+.nav-item.active { color: #38bdf8; background: #1a2535; border-right: 2px solid #38bdf8; }
+.nav-item i { font-size: 14px; }
 
-        table { width: 100%; border-collapse: collapse; font-size: 11px; }
-        th, td { padding: 9px 10px; border-bottom: 1px solid #1a1d25; text-align: left; }
-        th { color: #94a3b8; font-weight: 700; background: #0f1117; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #2a2d36;}
-        tr:last-child td { border-bottom: none; }
-        tr:hover td { background: #13161e; }
+.submenu { display: none; flex-direction: column; background: #0d0f14; }
+.submenu.open { display: flex; }
+.subitem { display: flex; align-items: center; gap: 8px; padding: 7px 12px 7px 30px; font-size: 11px; color: #6b7280; cursor: pointer; text-decoration: none; }
+.subitem:hover { color: #cbd5e1; background: #1a1d25; }
+.subitem.active { color: #38bdf8; }
 
-        .bar-row { display: grid; grid-template-columns: 90px 1fr 70px 80px; align-items: center; gap: 8px; margin: 8px 0; font-size: 12px; color: #cbd5e1; }
-        .bar-bg { background: rgba(239, 68, 68, 0.15); height: 14px; border-radius: 4px; overflow: hidden; border: 1px solid rgba(239, 68, 68, 0.3);}
-        .bar-fill { background: #ef4444; height: 100%; border-radius: 3px; }
+.smeta {
+    padding: 10px 12px 0;
+    border-top: 0.5px solid #2a2d36;
+    margin-top: auto;
+    font-size: 9px;
+    color: #4b5563;
+    line-height: 1.7;
+}
 
-        .takeaway { padding: 12px; border-radius: 6px; margin-bottom: 12px; font-size: 12px; line-height: 1.5; }
-        .success { background: rgba(34, 197, 94, 0.12); border: 1px solid rgba(34, 197, 94, 0.3); color: #22c55e; }
-        .warning { background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.3); color: #f59e0b; }
-        .danger { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; }
-        .info { background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; }
+/* ================= MAIN AREA ================= */
+.main {
+    flex: 1;
+    padding: 18px 20px;
+    overflow-y: auto;
+    height: 100vh;
+}
 
-        .loader { margin-top: 20px; font-weight: 600; font-size: 13px; color: #38bdf8; }
+.ptitle { font-size: 18px; font-weight: 600; color: #e2e8f0; }
+.psub { font-size: 11px; color: #6b7280; margin-bottom: 14px; margin-top: 3px; }
 
-        @media(max-width: 1200px) {
-            .kpi-grid { grid-template-columns: repeat(3, 1fr); }
-            .grid, .grid-3 { grid-template-columns: 1fr; }
-        }
-    </style>
+.ctrl-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.filter-box { display: flex; align-items: center; gap: 6px; }
+
+.filter-box input,
+.filter-box select {
+    background: #0d0f14;
+    border: 0.5px solid #2a2d36;
+    border-radius: 4px;
+    color: #e2e8f0;
+    font-size: 11px;
+    padding: 6px 9px;
+    height: 28px;
+}
+
+.filter-box input:focus,
+.filter-box select:focus {
+    outline: none;
+    border-color: #38bdf8;
+}
+
+.action-btn {
+    background: #1a1d25;
+    border: 0.5px solid #2a2d36;
+    color: #94a3b8;
+    font-size: 11px;
+    padding: 0 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    font-weight: 500;
+}
+
+.action-btn:hover { color: #e2e8f0; background: #222530; }
+.action-btn.primary { color: #38bdf8; border-color: #1a3a5a; background: #0f1f2e; }
+.action-btn.primary:hover { background: #162b42; }
+
+.last-updated {
+    text-align: right;
+    color: #22c55e;
+    font-size: 10px;
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+
+/* ================= TOP SUMMARY BAR ================= */
+.top-summary-bar {
+    display: flex;
+    gap: 24px;
+    background: #111318;
+    border: 0.5px solid #2a2d36;
+    border-radius: 7px;
+    padding: 12px 18px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.ts-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-right: 0.5px solid #2a2d36;
+    padding-right: 24px;
+}
+
+.ts-item:last-child {
+    border-right: none;
+    padding-right: 0;
+}
+
+.ts-label {
+    color: #6b7280;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.ts-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.error-box {
+    display: none;
+    background: rgba(239, 68, 68, 0.12);
+    border: 0.5px solid #ef4444;
+    color: #fca5a5;
+    padding: 10px;
+    border-radius: 7px;
+    margin-bottom: 14px;
+    font-size: 12px;
+}
+
+/* ================= KPI ================= */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.kpi {
+    background: #111318;
+    border: 0.5px solid #2a2d36;
+    border-radius: 7px;
+    padding: 12px;
+    position: relative;
+    overflow: hidden;
+}
+
+.kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.kpi.blue::before { background: #38bdf8; }
+.kpi.green::before { background: #16a34a; }
+.kpi.purple::before { background: #7c3aed; }
+.kpi.orange::before { background: #f97316; }
+.kpi.red::before { background: #dc2626; }
+.kpi.cyan::before { background: #06b6d4; }
+
+.kpi-title { font-size: 10px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 6px; }
+.kpi-value { font-size: 20px; font-weight: 700; color: #e2e8f0; }
+.kpi-sub { font-size: 10px; margin-top: 4px; color: #6b7280; }
+
+.green-text { color: #22c55e; }
+.red-text { color: #ef4444; }
+.orange-text { color: #f59e0b; }
+.cyan-text { color: #06b6d4; }
+
+/* ================= ALERTS ================= */
+.alerts-panel {
+    background: #111318;
+    border: 0.5px solid #2a2d36;
+    border-radius: 7px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+}
+
+.alerts-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.alerts-title { font-size: 13px; font-weight: 600; color: #e2e8f0; display: flex; align-items: center; gap: 7px; }
+.alerts-count { background: #1a2535; border: 0.5px solid #38bdf8; color: #38bdf8; padding: 3px 8px; border-radius: 5px; font-size: 10px; font-weight: 600; }
+
+.alert-list {
+    display: grid;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.alert-list::-webkit-scrollbar { width: 4px; }
+.alert-list::-webkit-scrollbar-thumb { background: #2a2d36; border-radius: 4px; }
+
+.alert-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #0d0f14;
+    border: 0.5px solid #2a2d36;
+    border-radius: 5px;
+    padding: 8px 12px;
+}
+
+.alert-icon { font-size: 14px; display: flex; align-items: center; }
+.alert-row.ok .alert-icon { color: #22c55e; }
+.alert-row.warn .alert-icon { color: #f59e0b; }
+.alert-row.danger .alert-icon { color: #ef4444; }
+
+.alert-message { color: #cbd5e1; font-size: 11px; flex: 1; }
+.alert-status { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
+
+.alert-row.ok .alert-status { background: rgba(34, 197, 94, 0.12); color: #22c55e; }
+.alert-row.warn .alert-status { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+.alert-row.danger .alert-status { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
+
+/* ================= GRIDS & PANELS ================= */
+.dashboard-grid-1 { display: grid; grid-template-columns: 1.65fr 1fr; gap: 14px; margin-bottom: 14px; }
+.dashboard-grid-1 .forecast-panel { grid-row: span 2; }
+.dashboard-grid-2 { display: grid; grid-template-columns: 1.45fr 0.75fr; gap: 14px; margin-bottom: 14px; }
+.dashboard-grid-3 { display: grid; grid-template-columns: 1.25fr 0.72fr 0.95fr; gap: 14px; margin-bottom: 14px; }
+.dashboard-grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+
+.panel {
+    background: #111318;
+    border: 0.5px solid #2a2d36;
+    border-radius: 7px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-title { font-size: 12px; font-weight: 600; color: #e2e8f0; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+
+.chart-large { height: 460px; position: relative; width: 100%; }
+.chart-medium { height: 220px; position: relative; width: 100%; }
+.chart-small { height: 170px; position: relative; width: 100%; }
+
+.table-wrap { flex: 1; overflow-y: auto; max-height: 260px; }
+
+/* ================= TABLES ================= */
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+th {
+    font-size: 9px;
+    color: #4b5563;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    padding: 8px 10px;
+    border-bottom: 0.5px solid #2a2d36;
+    text-align: left;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    background: #111318;
+    z-index: 1;
+}
+td { padding: 9px 10px; border-bottom: 0.5px solid #1a1d25; color: #94a3b8; white-space: nowrap; }
+tr:hover td { background: #13161e; }
+tr:last-child td { border-bottom: none; }
+
+.badge { padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 9px; display: inline-block; }
+.badge-blue { background: #1a2535; color: #38bdf8; border: 0.5px solid #38bdf8; }
+.badge-green { background: rgba(34,197,94,.12); color: #22c55e; border: 0.5px solid #22c55e; }
+.badge-red { background: rgba(239,68,68,.12); color: #ef4444; border: 0.5px solid #ef4444; }
+.badge-orange { background: rgba(245,158,11,.12); color: #f59e0b; border: 0.5px solid #f59e0b; }
+
+/* ================= HEATMAP ================= */
+.heatmap { display: grid; grid-template-columns: 82px repeat(96, 1fr); gap: 1px; align-items: center; }
+.heatmap-wrap { overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; }
+.heat-label { text-align: right; padding-right: 8px; color: #6b7280; font-size: 10px; white-space: nowrap; }
+.heat-cell { height: 14px; border-radius: 1px; }
+.heat-axis { display: flex; justify-content: space-between; margin-top: 8px; color: #4b5563; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* ================= BIAS ================= */
+.bias-box { display: grid; gap: 6px; margin-bottom: 14px; }
+.bias-row { display: flex; justify-content: space-between; padding: 8px 12px; background: #0d0f14; border-radius: 5px; border: 0.5px solid #2a2d36; font-size: 11px; color: #94a3b8; }
+
+/* ================= FORECAST AVAILABILITY ================= */
+.forecast-only-card { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; background: #0d0f14; border: 0.5px solid #2a2d36; border-radius: 7px; padding: 20px; }
+.forecast-icon { font-size: 24px; color: #38bdf8; }
+.forecast-label { font-size: 12px; margin-top: 8px; color: #cbd5e1; }
+.forecast-value { font-size: 36px; font-weight: 700; line-height: 1.2; margin-top: 4px; }
+.forecast-sub { font-size: 10px; color: #6b7280; }
+
+.footer { text-align: center; color: #4b5563; font-size: 10px; padding: 12px; border-top: 0.5px solid #2a2d36; margin-top: 10px; }
+
+/* ================= RESPONSIVE ================= */
+@media(max-width:1500px) {
+    .dashboard-grid-1, .dashboard-grid-2, .dashboard-grid-3, .dashboard-grid-4 { grid-template-columns: 1fr; }
+    .dashboard-grid-1 .forecast-panel { grid-row: auto; }
+    .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    .chart-large { height: 380px; }
+}
+@media(max-width:800px) {
+    .app { flex-direction: column; }
+    .sidebar { width: 100%; height: auto; display: none; }
+    .kpi-grid { grid-template-columns: 1fr; }
+    .ctrl-row { flex-direction: column; align-items: flex-start; }
+}
+</style>
 </head>
 
 <body>
 <div class="app">
-    <!-- Sidebar -->
-    <div class="sidebar">
-        <div class="slogo">
-            <div class="slogo-icon"><i class="ti ti-bolt" style="color:#fff;font-size:13px" aria-hidden="true"></i></div>
-            <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
-        </div>
-        <div style="margin-top:10px;">
-            <div class="nav-item"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
-            <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
-            <div class="nav-item" id="settle-toggle" onclick="toggleSettle(event)">
-  <i class="ti ti-receipt-2"></i> Settlement
-  <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
-</div>
-<div class="submenu" id="settle-sub">
-  <div class="subitem" onclick="window.location.href='settlement_ispl.html'"><i class="ti ti-building-factory"></i> ISPL</div>
-  <div class="subitem" onclick="window.location.href='settlement_quenext.html'"><i class="ti ti-building-factory-2"></i> Quenext</div>
-  <div class="subitem" onclick="window.location.href='settlement_comparison.html'"><i class="ti ti-arrows-diff"></i> Comparison</div>
-</div>
-            <div class="nav-item"><i class="ti ti-database"></i> Data Entry</div>
-            
-            <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
-                <i class="ti ti-file-analytics"></i> Reports
-                <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
-            </div>
-            <div class="submenu" id="reports-sub">
-                <!-- Moved Dashboard into Reports -->
-                <div class="subitem" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
-                
-                <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
-                <div class="subitem active" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
-                <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
-            </div>
-            
-            <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
-            <div class="nav-item" onclick="logout()"><i class="ti ti-logout"></i> Logout</div>
-        </div>
-        <div class="smeta">ISPL · Quenext · Solar · Wind<br>DA2 · R16 · NRMSE Engine v1</div>
+
+<aside class="sidebar">
+    <div class="slogo">
+        <div class="slogo-icon"><i class="ti ti-bolt" style="color:#fff;font-size:13px"></i></div>
+        <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
     </div>
 
-    <!-- Main Content -->
-    <div class="main">
-        <div class="header">
-            <div>
-                <div class="title">SCADA Missing Data Dashboard</div>
-                <div class="subtitle">Daily / Last 7 Days / Last 30 Days SCADA availability analysis</div>
-            </div>
+    <div style="margin-top:10px;">
+        <div class="nav-item active" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+        <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+        <div class="nav-item" id="settle-toggle" onclick="toggleSettle(event)">
+            <i class="ti ti-receipt-2"></i> Settlement
+            <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+        </div>
+        <div class="submenu" id="settle-sub">
+            <div class="subitem" onclick="window.location.href='settlement_ispl.html'"><i class="ti ti-building-factory"></i> ISPL</div>
+            <div class="subitem" onclick="window.location.href='settlement_quenext.html'"><i class="ti ti-building-factory-2"></i> Quenext</div>
+            <div class="subitem" onclick="window.location.href='settlement_comparison.html'"><i class="ti ti-arrows-diff"></i> Comparison</div>
+        </div>
+        <div class="nav-item"><i class="ti ti-database"></i> Data Entry</div>
+        <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+            <i class="ti ti-file-analytics"></i> Reports
+            <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+        </div>
+        <div class="submenu" id="reports-sub">
+            <div class="subitem" onclick="window.location.href='scada_missing.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
+            <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
+            <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+            <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
+        </div>
+        <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+        <div class="nav-item" onclick="logout()"><i class="ti ti-logout"></i> Logout</div>
+    </div>
+    
+    <div class="smeta">ISPL · Quenext · Solar · Wind<br>DA2 · R16 · NRMSE Engine v1</div>
+</aside>
 
-            <div class="controls">
-                <select id="periodMode">
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Last 7 Days</option>
-                    <option value="monthly">Last 30 Days</option>
-                </select>
-                <input type="date" id="reportDate">
-                <button onclick="loadDashboard()">Refresh Data</button>
+<main class="main">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px;">
+        <div>
+            <h1 class="ptitle">Daily Forecast Analysis Dashboard</h1>
+            <div class="psub">IPSL and QueNext forecast vs SCADA, alerts, and report extraction</div>
+        </div>
+        <div class="last-updated" id="lastUpdated">Last Updated: -</div>
+    </div>
+
+    <div class="ctrl-row">
+        <div class="filter-box">
+            <input type="date" id="reportDate">
+        </div>
+        <div class="filter-box">
+            <select id="company">
+                <option value="ALL">All Companies</option>
+                <option value="IPSL">IPSL</option>
+                <option value="QueNext">QueNext</option>
+            </select>
+        </div>
+        <div class="filter-box">
+            <select id="revision">
+                <option value="ALL">All Revisions</option>
+                <option value="R02">R02</option>
+                <option value="R20">R20</option>
+                <option value="RD2">RD2</option>
+                <option value="R-16">R-16</option>
+            </select>
+        </div>
+        <button class="action-btn primary" onclick="loadDashboard()"><i class="ti ti-refresh"></i> Refresh</button>
+        <button class="action-btn" onclick="exportReport('excel')" style="color:#22c55e; border-color:#166534;"><i class="ti ti-file-spreadsheet"></i> Excel</button>
+        <button class="action-btn" onclick="exportReport('csv')" style="color:#a855f7; border-color:#581c87;"><i class="ti ti-file-type-csv"></i> CSV</button>
+        <button class="action-btn" onclick="exportReport('pdf')" style="color:#ef4444; border-color:#7f1d1d;"><i class="ti ti-file-type-pdf"></i> PDF</button>
+    </div>
+
+    <div class="top-summary-bar">
+        <div class="ts-item">
+            <div class="ts-label">Selected Date (IST)</div>
+            <div class="ts-value" id="topDate">-</div>
+        </div>
+        <div class="ts-item">
+            <div class="ts-label">Total DSS</div>
+            <div class="ts-value" id="topDss">0</div>
+        </div>
+        <div class="ts-item">
+            <div class="ts-label">Total Blocks/Day</div>
+            <div class="ts-value">96 (15 min)</div>
+        </div>
+        <div class="ts-item">
+            <div class="ts-label">Day Type</div>
+            <div class="ts-value">Normal Day</div>
+        </div>
+        <div class="ts-item">
+            <div class="ts-label">Forecast Data</div>
+            <div class="ts-value" id="topForecast" style="color:#38bdf8">0%</div>
+        </div>
+        <div class="ts-item">
+            <div class="ts-label">SCADA Data</div>
+            <div class="ts-value" id="topScada" style="color:#22c55e">0%</div>
+        </div>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+
+    <div class="kpi-grid">
+        <div class="kpi blue">
+            <div class="kpi-title">Forecast Records</div>
+            <div class="kpi-value" id="kpiRecords">0</div>
+            <div class="kpi-sub green-text">Selected Day</div>
+        </div>
+        <div class="kpi green">
+            <div class="kpi-title">Total DSS Count</div>
+            <div class="kpi-value" id="kpiDss">0</div>
+            <div class="kpi-sub green-text">Active Plants</div>
+        </div>
+        <div class="kpi purple">
+            <div class="kpi-title">Block Coverage</div>
+            <div class="kpi-value" id="kpiBlocks">0 / 96</div>
+            <div class="kpi-sub">15-min Blocks</div>
+        </div>
+        <div class="kpi orange">
+            <div class="kpi-title">Zero Forecast Plants</div>
+            <div class="kpi-value" id="kpiZero">0</div>
+            <div class="kpi-sub orange-text">All 96 Blocks Zero</div>
+        </div>
+        <div class="kpi green">
+            <div class="kpi-title">Best NRMSE</div>
+            <div class="kpi-value" id="kpiBest">-</div>
+            <div class="kpi-sub green-text" id="kpiBestSub">-</div>
+        </div>
+        <div class="kpi red">
+            <div class="kpi-title">Worst NRMSE</div>
+            <div class="kpi-value" id="kpiWorst">-</div>
+            <div class="kpi-sub red-text" id="kpiWorstSub">-</div>
+        </div>
+        <div class="kpi cyan">
+            <div class="kpi-title">Net Bias MW</div>
+            <div class="kpi-value" id="kpiBias">0</div>
+            <div class="kpi-sub cyan-text">Forecast - Actual</div>
+        </div>
+    </div>
+
+    <div class="alerts-panel">
+        <div class="alerts-header">
+            <div class="alerts-title"><i class="ti ti-bell"></i> Today’s Alerts</div>
+            <div class="alerts-count" id="alertCount">0 Alerts</div>
+        </div>
+        <div class="alert-list" id="alertList"></div>
+    </div>
+
+    <div class="dashboard-grid-1">
+        <div class="panel forecast-panel">
+            <div class="panel-title"><i class="ti ti-chart-line"></i> Forecast vs Actual Curve</div>
+            <div class="chart-large">
+                <canvas id="forecastActualChart"></canvas>
             </div>
         </div>
 
-        <div id="rangeBox" class="range-box">Date Range: -</div>
-        <div id="loader" class="loader">Loading dashboard...</div>
-
-        <div class="kpi-grid">
-            <div class="kpi-card">
-                <div class="kpi-title">Total Plants</div>
-                <div class="kpi-value" id="kpiPlants">-</div>
-                <div class="kpi-note">Plants checked</div>
+        <div class="panel">
+            <div class="panel-title"><i class="ti ti-grid-dots"></i> Block-wise Error Heatmap (%)</div>
+            <div class="heatmap-wrap">
+                <div id="heatmap" class="heatmap"></div>
             </div>
-            <div class="kpi-card">
-                <div class="kpi-title">Days</div>
-                <div class="kpi-value" id="kpiDays">-</div>
-                <div class="kpi-note">Selected period</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">Total DB Rows</div>
-                <div class="kpi-value" id="kpiRows">-</div>
-                <div class="kpi-note">Rows found in DSS_ACTUAL</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">Missing Slots</div>
-                <div class="kpi-value" id="kpiMissingSlots" style="color:#ef4444;">-</div>
-                <div class="kpi-note">Total missing slot count</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">Average Availability</div>
-                <div class="kpi-value" id="kpiAvg">-</div>
-                <div class="kpi-note">Overall health</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">Worst Plant</div>
-                <div class="kpi-value" id="kpiWorst" style="font-size:22px;color:#a855f7;">-</div>
-                <div class="kpi-note" id="kpiWorstNote">-</div>
+            <div class="heat-axis">
+                <span>Low Error</span>
+                <span>Medium</span>
+                <span>High Error</span>
             </div>
         </div>
 
-        <div class="grid">
-            <div class="card">
-                <div class="card-title">1. Availability Distribution Across Plants</div>
-                <div id="availabilityBar" class="availability-bar"></div>
-                <table id="availabilityTable"></table>
-            </div>
-
-            <div class="card">
-                <div class="card-title">2. Top 20 Worst DSS by Missing %</div>
-                <div id="topWorst" style="max-height: 250px; overflow-y: auto; padding-right: 8px;"></div>
-            </div>
-        </div>
-
-        <div class="grid">
-            <div class="card">
-                <div class="card-title">3. Daily Availability Trend</div>
-                <canvas id="dailyAvailabilityChart"></canvas>
-            </div>
-
-            <div class="card">
-                <div class="card-title">4. Daily Missing Plants / Full Missing Plants</div>
-                <canvas id="dailyMissingChart"></canvas>
-            </div>
-        </div>
-
-        <div class="grid-3">
-            <div class="card">
-                <div class="card-title">5. Average Missing Count by Time Slot</div>
-                <canvas id="missingTimeChart"></canvas>
-            </div>
-
-            <div class="card">
-                <div class="card-title">6. Missing Slots Distribution</div>
-                <div style="height: 220px; position: relative;"><canvas id="slotDistributionChart"></canvas></div>
-            </div>
-
-            <div class="card">
-                <div class="card-title">7. Key Takeaways</div>
-                <div id="takeaways"></div>
+        <div class="panel">
+            <div class="panel-title"><i class="ti ti-chart-bar"></i> Daily NRMSE Comparison (%)</div>
+            <div class="chart-medium">
+                <canvas id="nrmseChart"></canvas>
             </div>
         </div>
     </div>
+
+    <div class="dashboard-grid-2">
+        <div class="panel">
+            <div class="panel-title"><i class="ti ti-git-commit"></i> Revision Comparison Summary</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Company</th>
+                            <th>Revision</th>
+                            <th>Total MW</th>
+                            <th>Avg MW</th>
+                            <th>Peak MW</th>
+                            <th>Peak Block</th>
+                        </tr>
+                    </thead>
+                    <tbody id="revisionTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title"><i class="ti ti-scale"></i> Bias Analysis</div>
+            <div class="bias-box">
+                <div class="bias-row"><span>Over Forecast MW</span><b class="red-text" id="biasOver">0</b></div>
+                <div class="bias-row"><span>Under Forecast MW</span><b class="green-text" id="biasUnder">0</b></div>
+                <div class="bias-row"><span>Net Bias MW</span><b class="orange-text" id="biasNet">0</b></div>
+            </div>
+            <div class="chart-small">
+                <canvas id="biasChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-grid-3">
+        <div class="panel">
+            <div class="panel-title"><i class="ti ti-sort-descending"></i> Top Plant-wise Forecast Ranking</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Company</th>
+                            <th>DSS ID</th>
+                            <th>Revision</th>
+                            <th>Forecast MW</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="plantErrorTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel" style="padding:0">
+            <div class="forecast-only-card" style="border:none; border-radius:7px;">
+                <div class="forecast-icon"><i class="ti ti-database-export"></i></div>
+                <div class="forecast-label">Forecast Data Availability</div>
+                <div class="forecast-value green-text" id="gForecast">0%</div>
+                <div class="forecast-sub">Data coverage for selected date</div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title"><i class="ti ti-cash"></i> Payment Impact</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Company</th>
+                            <th>Energy</th>
+                            <th>Rev</th>
+                            <th>NRMSE</th>
+                            <th>Pay</th>
+                            <th>Lost</th>
+                        </tr>
+                    </thead>
+                    <tbody id="paymentTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-grid-4">
+        <div class="panel">
+            <div class="panel-title"><i class="ti ti-circle-off"></i> Full Zero Forecast Plants</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Company</th>
+                            <th>DSS ID</th>
+                            <th>Revision</th>
+                            <th>Blocks</th>
+                            <th>Zero</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="zeroTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title"><i class="ti ti-alert-triangle"></i> Missing Block Analysis</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Company</th>
+                            <th>DSS ID</th>
+                            <th>Revision</th>
+                            <th>Available</th>
+                            <th>Missing</th>
+                            <th>%</th>
+                        </tr>
+                    </thead>
+                    <tbody id="missingTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title"><i class="ti ti-clipboard-data"></i> Daily Forecast Summary</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Company</th>
+                            <th>Revision</th>
+                            <th>DSS</th>
+                            <th>Blocks</th>
+                            <th>Total MW</th>
+                            <th>Zero</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summaryTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        All times are in IST | Block interval: 15 minutes | Daily blocks: 96
+    </div>
+</main>
 </div>
 
 <script>
-    const API_BASE = "http://localhost:8000";
-    // Set Global Chart.js defaults to match dark theme
-    Chart.defaults.color = '#94a3b8';
-    Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.05)';
-    Chart.defaults.font.family = 'var(--font-sans, system-ui, -apple-system, sans-serif)';
+let forecastActualChart = null;
+let nrmseChart = null;
+let biasChart = null;
 
-    let missingTimeChart = null;
-    let slotDistributionChart = null;
-    let dailyAvailabilityChart = null;
-    let dailyMissingChart = null;
+document.getElementById("reportDate").value = new Date().toISOString().slice(0, 10);
 
-    function getYesterday() {
-        const d = new Date();
-        d.setDate(d.getDate() - 1);
-        return d.toISOString().split("T")[0];
+function num(x) {
+    if (x === null || x === undefined || isNaN(Number(x))) return 0;
+    return Number(x);
+}
+
+function fmt(x, dec = 0) {
+    return num(x).toLocaleString("en-IN", {
+        minimumFractionDigits: dec,
+        maximumFractionDigits: dec
+    });
+}
+
+function nrmseColor(v) {
+    v = num(v);
+    if (v <= 5) return "#22c55e";
+    if (v <= 9) return "#f97316";
+    return "#ef4444";
+}
+
+function badgeCompany(c) {
+    return c === "IPSL" ? "badge-blue" : "badge-green";
+}
+
+function showError(m) {
+    const b = document.getElementById("errorBox");
+    b.style.display = "block";
+    b.innerText = m;
+}
+
+function hideError() {
+    const b = document.getElementById("errorBox");
+    b.style.display = "none";
+    b.innerText = "";
+}
+
+const API_BASE = "http://localhost:8000";
+
+function toggleSettle(e){ if(e) e.stopPropagation(); var s=document.getElementById('settle-sub'); if(s) s.classList.toggle('open'); }
+function toggleReports(e){ if(e) e.stopPropagation(); var s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
+
+function qs() {
+    const d = document.getElementById("reportDate").value;
+    const c = document.getElementById("company").value;
+    const r = document.getElementById("revision").value;
+    return `report_date=${encodeURIComponent(d)}&company=${encodeURIComponent(c)}&revision=${encodeURIComponent(r)}`;
+}
+
+function exportReport(type) {
+    window.location.href = `${API_BASE}/api/export/${type}?${qs()}&token=${sessionStorage.getItem('auth_token')}`;
+}
+
+async function loadDashboard() {
+    hideError();
+    try {
+        const res = await fetch(`${API_BASE}/api/dashboard?${qs()}`);
+        if (!res.ok) throw new Error(`API error ${res.status}. Check backend terminal.`);
+        const data = await res.json();
+
+        fillKpis(data);
+        fillSide(data);
+        drawForecastActual(data);
+        drawNrmse(data);
+        drawHeatmap(data.heatmap || []);
+        fillRevisionTable(data.revision_summary || []);
+        fillBias(data.bias || {});
+        drawBiasChart(data.bias || {});
+        fillPlantErrors(data.plant_errors || []);
+        fillAvailability(data.data_availability || {});
+        fillPayment(data.payment_impact || []);
+        fillAlerts(data.alerts || []);
+        fillZero(data.zero_plants || []);
+        fillMissing(data.missing_blocks || []);
+        fillSummary(data.summary || []);
+    } catch (err) {
+        showError("Dashboard data loading failed: " + err.message);
+    }
+}
+
+function fillKpis(data) {
+    const k = data.kpis || {};
+    document.getElementById("kpiRecords").innerText = fmt(k.total_records);
+    document.getElementById("kpiDss").innerText = fmt(k.total_dss);
+    document.getElementById("kpiBlocks").innerText = `${num(k.block_count)} / 96`;
+    document.getElementById("kpiZero").innerText = fmt(k.zero_forecast_plants);
+    document.getElementById("kpiBias").innerText = fmt(k.net_bias_mw);
+
+    if (k.best_nrmse) {
+        document.getElementById("kpiBest").innerText = num(k.best_nrmse.nrmse_values).toFixed(2) + "%";
+        document.getElementById("kpiBestSub").innerText = `${k.best_nrmse.company} ${k.best_nrmse.energy_type} ${k.best_nrmse.revision_num}`;
+    } else {
+        document.getElementById("kpiBest").innerText = "-";
+        document.getElementById("kpiBestSub").innerText = "-";
     }
 
-    document.getElementById("reportDate").value = getYesterday();
+    if (k.worst_nrmse) {
+        document.getElementById("kpiWorst").innerText = num(k.worst_nrmse.nrmse_values).toFixed(2) + "%";
+        document.getElementById("kpiWorstSub").innerText = `${k.worst_nrmse.company} ${k.worst_nrmse.energy_type} ${k.worst_nrmse.revision_num}`;
+    } else {
+        document.getElementById("kpiWorst").innerText = "-";
+        document.getElementById("kpiWorstSub").innerText = "-";
+    }
+    document.getElementById("lastUpdated").innerText = `Last Updated: ${data.last_updated || "-"} IST`;
+}
 
-    async function loadDashboard() {
-        document.getElementById("loader").style.display = "block";
-        document.getElementById("loader").innerText = "Loading dashboard...";
+function fillSide(data) {
+    // These now target the top summary bar IDs
+    document.getElementById("topDate").innerText = data.report_date || "-";
+    document.getElementById("topDss").innerText = data.kpis ? data.kpis.total_dss : 0;
+    const a = data.data_availability || {};
+    document.getElementById("topForecast").innerText = num(a.forecast_data) + "%";
+    document.getElementById("topScada").innerText = num(a.scada_actuals) + "%";
+}
 
-        const reportDate = document.getElementById("reportDate").value;
-        const period = document.getElementById("periodMode").value;
-const url = `${API_BASE}/api/dashboard?report_date=${reportDate}&period=${period}`;
-        try {
-            const res = await fetch(url);
-            const data = await res.json();
+function drawForecastActual(data) {
+    const labels = Array.from({ length: 96 }, (_, i) => i + 1);
+    const datasets = [];
+    const colors = ["#38bdf8", "#f59e0b", "#a855f7", "#ef4444", "#14b8a6", "#ec4899"];
+    const groups = {};
 
-            if (data.error) {
-                document.getElementById("loader").innerText = "Error: " + data.error;
-                return;
+    (data.forecast_curve || []).forEach(r => {
+        const key = `${r.company} ${r.revision_number} Forecast`;
+        if (!groups[key]) groups[key] = Array(96).fill(null);
+        groups[key][num(r.block_no) - 1] = num(r.forecast_mw);
+    });
+
+    let i = 0;
+    Object.keys(groups).forEach(key => {
+        datasets.push({
+            label: key, data: groups[key], borderColor: colors[i % colors.length],
+            backgroundColor: colors[i % colors.length], tension: 0.3, pointRadius: 0, borderWidth: 1.5, borderDash: [5,3]
+        });
+        i++;
+    });
+
+    const actual = Array(96).fill(null);
+    (data.actual_curve || []).forEach(r => { actual[num(r.block_no) - 1] = num(r.actual_mw); });
+
+    datasets.push({
+        label: "SCADA Actual", data: actual, borderColor: "#22c55e", backgroundColor: "#22c55e",
+        tension: 0.3, pointRadius: 0, borderWidth: 2
+    });
+
+    if (forecastActualChart) forecastActualChart.destroy();
+    forecastActualChart = new Chart(document.getElementById("forecastActualChart"), {
+        type: "line", data: { labels, datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: "#6b7280", font: { size: 9 } }, grid: { color: "rgba(255,255,255,.04)" } },
+                y: { ticks: { color: "#6b7280", font: { size: 9 } }, grid: { color: "rgba(255,255,255,.06)" } }
             }
-
-            renderRange(data);
-            renderKPIs(data);
-            renderAvailability(data.availability_distribution);
-            renderTopWorst(data.top_worst);
-            renderDailyAvailabilityChart(data.daily_trend);
-            renderDailyMissingChart(data.daily_trend);
-            renderMissingTimeChart(data.missing_time_series);
-            renderSlotDistribution(data.slot_distribution);
-            renderTakeaways(data);
-
-            document.getElementById("loader").style.display = "none";
-        } catch (err) {
-            document.getElementById("loader").innerText = "Error loading dashboard: " + err;
         }
+    });
+}
+
+function drawNrmse(data) {
+    const rows = data.daily_nrmse || [];
+    const labels = rows.map(r => `${r.company}\n${r.energy_type} ${r.revision_num}`);
+    const values = rows.map(r => num(r.nrmse_values));
+    const colors = values.map(v => nrmseColor(v));
+
+    if (nrmseChart) nrmseChart.destroy();
+    nrmseChart = new Chart(document.getElementById("nrmseChart"), {
+        type: "bar", data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 4 }] },
+        options: {
+            responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: "#6b7280", font: { size: 9 } }, grid: { display: false } },
+                y: { beginAtZero: true, ticks: { color: "#6b7280", font: { size: 9 } }, grid: { color: "rgba(255,255,255,.06)" } }
+            }
+        }
+    });
+}
+
+function drawHeatmap(rows) {
+    const box = document.getElementById("heatmap");
+    box.innerHTML = "";
+    const grouped = {};
+
+    rows.forEach(r => {
+        const key = `${r.company} ${r.revision_number}`;
+        if (!grouped[key]) grouped[key] = {};
+        grouped[key][r.block_no] = num(r.error_pct);
+    });
+
+    Object.keys(grouped).forEach(key => {
+        const label = document.createElement("div");
+        label.className = "heat-label"; label.innerText = key;
+        box.appendChild(label);
+
+        for (let i = 1; i <= 96; i++) {
+            const val = Math.abs(grouped[key][i] || 0);
+            const cell = document.createElement("div");
+            cell.className = "heat-cell";
+            if (val <= 5) cell.style.background = "#22c55e";
+            else if (val <= 10) cell.style.background = "#eab308";
+            else if (val <= 20) cell.style.background = "#f97316";
+            else cell.style.background = "#ef4444";
+            box.appendChild(cell);
+        }
+    });
+    if (Object.keys(grouped).length === 0) box.innerHTML = "<div style='color:#6b7280; font-size:11px'>No heatmap data available</div>";
+}
+
+function fillRevisionTable(rows) {
+    const t = document.getElementById("revisionTable");
+    t.innerHTML = "";
+    rows.forEach(r => {
+        t.innerHTML += `<tr>
+            <td><span class="badge ${badgeCompany(r.company)}">${r.company}</span></td>
+            <td>${r.revision_number}</td>
+            <td style="color:#e2e8f0">${fmt(r.total_mw)}</td>
+            <td>${fmt(r.avg_mw)}</td>
+            <td>${fmt(r.peak_mw)}</td>
+            <td>${r.peak_block || "-"}</td>
+        </tr>`;
+    });
+}
+
+function fillBias(b) {
+    document.getElementById("biasOver").innerText = fmt(b.over_forecast_mw);
+    document.getElementById("biasUnder").innerText = fmt(b.under_forecast_mw);
+    document.getElementById("biasNet").innerText = fmt(b.net_bias_mw);
+}
+
+function drawBiasChart(b) {
+    if (biasChart) biasChart.destroy();
+    biasChart = new Chart(document.getElementById("biasChart"), {
+        type: "doughnut",
+        data: {
+            labels: ["Over Forecast", "Under Forecast"],
+            datasets: [{ data: [num(b.over_forecast_mw), num(b.under_forecast_mw)], backgroundColor: ["#ef4444", "#22c55e"], borderWidth: 0 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: "70%",
+            plugins: { legend: { position: "right", labels: { color: "#94a3b8", font: { size: 9 }, usePointStyle: true, boxWidth: 6 } } }
+        }
+    });
+}
+
+function fillPlantErrors(rows) {
+    const t = document.getElementById("plantErrorTable");
+    t.innerHTML = "";
+    rows.slice(0, 15).forEach((r, i) => {
+        t.innerHTML += `<tr>
+            <td>${i + 1}</td>
+            <td><span class="badge ${badgeCompany(r.company)}">${r.company}</span></td>
+            <td><span class="badge badge-blue" style="background:#1a2535">${r.dss_id}</span></td>
+            <td>${r.revision_number}</td>
+            <td style="color:#e2e8f0">${fmt(r.forecast_mw, 2)}</td>
+            <td><span class="badge badge-orange">${r.status || "FORECAST_ONLY"}</span></td>
+        </tr>`;
+    });
+}
+
+function fillAvailability(a) {
+    document.getElementById("gForecast").innerText = num(a.forecast_data) + "%";
+}
+
+function fillPayment(rows) {
+    const t = document.getElementById("paymentTable");
+    t.innerHTML = "";
+    rows.forEach(r => {
+        t.innerHTML += `<tr>
+            <td>${r.company}</td>
+            <td>${r.energy_type}</td>
+            <td>${r.revision_num}</td>
+            <td>${num(r.nrmse_values).toFixed(2)}%</td>
+            <td class="green-text">${num(r.eligible_pay).toFixed(1)}%</td>
+            <td class="red-text">${num(r.lost_pay).toFixed(1)}%</td>
+        </tr>`;
+    });
+}
+
+function fillAlerts(alerts) {
+    const box = document.getElementById("alertList");
+    const countBox = document.getElementById("alertCount");
+    box.innerHTML = "";
+
+    if (!alerts || alerts.length === 0) {
+        countBox.innerText = "0 Alerts";
+        box.innerHTML = `<div class="alert-row ok"><div class="alert-icon"><i class="ti ti-circle-check"></i></div><div class="alert-message">No major alerts found.</div><div class="alert-status">OK</div></div>`;
+        return;
     }
+    countBox.innerText = `${alerts.length} Alerts`;
+    alerts.forEach((a, index) => {
+        const text = String(a).toLowerCase();
+        let cls = "warn", icon = "ti-alert-circle", status = "CHECK";
+        if (text.includes("running") || text.includes("available") || text.includes("no solar scada")) {
+            cls = "ok"; icon = "ti-circle-check"; status = "OK";
+        }
+        if (text.includes("not running") || text.includes("not available") || text.includes("failed") || text.includes("above 10") || text.includes("zero forecast") || text.includes("repeated")) {
+            cls = "danger"; icon = "ti-alert-triangle"; status = "ALERT";
+        }
+        box.innerHTML += `<div class="alert-row ${cls}"><div class="alert-icon"><i class="ti ${icon}"></i></div><div class="alert-message">${index + 1}. ${a}</div><div class="alert-status">${status}</div></div>`;
+    });
+}
 
-    function renderRange(data) {
-        let label = "DAILY";
-        if (data.period === "weekly") label = "LAST 7 DAYS";
-        if (data.period === "monthly") label = "LAST 30 DAYS";
-        document.getElementById("rangeBox").innerText = `${label} Analysis | Date Range: ${data.start_date} to ${data.end_date} | Slot Interval: ${data.slot_minutes} minutes`;
+function fillZero(rows) {
+    const t = document.getElementById("zeroTable");
+    t.innerHTML = "";
+    if (!rows || rows.length === 0) {
+        t.innerHTML = `<tr><td colspan="6" style="text-align:center"><span class="badge badge-green">No Full Zero Forecast Plants</span></td></tr>`;
+        return;
     }
+    rows.slice(0, 15).forEach(r => {
+        t.innerHTML += `<tr>
+            <td>${r.company}</td>
+            <td><span class="badge badge-blue" style="background:#1a2535">${r.dss_id}</span></td>
+            <td>${r.revision_number}</td>
+            <td>${r.total_blocks}</td>
+            <td class="red-text">${r.zero_blocks}</td>
+            <td><span class="badge badge-red">${r.status}</span></td>
+        </tr>`;
+    });
+}
 
-    function renderKPIs(data) {
-        const k = data.kpis;
-        document.getElementById("kpiPlants").innerText = k.total_plants;
-        document.getElementById("kpiDays").innerText = k.days;
-        document.getElementById("kpiRows").innerText = k.total_db_rows.toLocaleString();
-        document.getElementById("kpiMissingSlots").innerText = k.total_missing_slots.toLocaleString();
-        document.getElementById("kpiAvg").innerText = k.avg_availability + "%";
-        document.getElementById("kpiWorst").innerText = k.worst_plant;
-        document.getElementById("kpiWorstNote").innerText = `${k.worst_plant_availability}% availability | ${k.worst_plant_missing} missing`;
+function fillMissing(rows) {
+    const t = document.getElementById("missingTable");
+    t.innerHTML = "";
+    if (!rows || rows.length === 0) {
+        t.innerHTML = `<tr><td colspan="6" style="text-align:center"><span class="badge badge-green">No Missing Blocks</span></td></tr>`;
+        return;
     }
+    rows.slice(0, 15).forEach(r => {
+        t.innerHTML += `<tr>
+            <td>${r.company}</td>
+            <td><span class="badge badge-blue" style="background:#1a2535">${r.dss_id}</span></td>
+            <td>${r.revision_number}</td>
+            <td>${r.available_blocks}</td>
+            <td class="red-text">${r.missing_blocks}</td>
+            <td>${r.missing_pct}%</td>
+        </tr>`;
+    });
+}
 
-    function renderAvailability(rows) {
-        const bar = document.getElementById("availabilityBar");
-        bar.innerHTML = "";
-        const colorMap = { "100%": "seg-lightgreen", "95-99.99%": "seg-green", "50-95%": "seg-yellow", "0-50%": "seg-orange", "0%": "seg-red" };
+function fillSummary(rows) {
+    const t = document.getElementById("summaryTable");
+    t.innerHTML = "";
+    rows.forEach(r => {
+        t.innerHTML += `<tr>
+            <td><span class="badge ${badgeCompany(r.company)}">${r.company}</span></td>
+            <td>${r.revision_number}</td>
+            <td>${r.dss_count}</td>
+            <td>${r.block_count}</td>
+            <td style="color:#e2e8f0">${fmt(r.total_forecast_mw, 2)}</td>
+            <td>${r.zero_rows}</td>
+        </tr>`;
+    });
+}
 
-        rows.forEach(r => {
-            const div = document.createElement("div");
-            div.className = colorMap[r.band];
-            div.style.width = Math.max(r.percent, 0.5) + "%";
-            div.title = `${r.band}: ${r.plants} plants`;
-            bar.appendChild(div);
-        });
-
-        let html = `<tr><th>Availability Band</th><th>Plants</th><th>Percent</th><th>Description</th></tr>`;
-        rows.forEach(r => { html += `<tr><td><b>${r.band}</b></td><td>${r.plants}</td><td>${r.percent}%</td><td style="color:#6b7280">${r.description}</td></tr>`; });
-        document.getElementById("availabilityTable").innerHTML = html;
-    }
-
-    function renderTopWorst(rows) {
-        const box = document.getElementById("topWorst");
-        box.innerHTML = "";
-        rows.forEach(r => {
-            const pct = r["Missing %"];
-            const div = document.createElement("div");
-            div.className = "bar-row";
-            div.innerHTML = `
-                <div><span style="background:#1a2535;color:#38bdf8;padding:2px 6px;border-radius:4px;font-weight:600;">${r.DSS_ID}</span></div>
-                <div class="bar-bg"><div class="bar-fill" style="width:${Math.max(pct, 1)}%"></div></div>
-                <div>${pct}%</div>
-                <div style="color:#6b7280">${r.Missing} slots</div>
-            `;
-            box.appendChild(div);
-        });
-    }
-
-    function renderDailyAvailabilityChart(rows) {
-        if (dailyAvailabilityChart) dailyAvailabilityChart.destroy();
-        const ctx = document.getElementById("dailyAvailabilityChart").getContext("2d");
-        dailyAvailabilityChart = new Chart(ctx, {
-            type: "line",
-            data: { labels: rows.map(r => r.date), datasets: [{ label: "Availability %", data: rows.map(r => r.availability), borderColor: "#38bdf8", backgroundColor: "rgba(56, 189, 248, 0.12)", fill: true, tension: 0.3, pointRadius: 3, borderWidth: 2 }] },
-            options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }
-        });
-    }
-
-    function renderDailyMissingChart(rows) {
-        if (dailyMissingChart) dailyMissingChart.destroy();
-        const ctx = document.getElementById("dailyMissingChart").getContext("2d");
-        dailyMissingChart = new Chart(ctx, {
-            type: "bar",
-            data: { labels: rows.map(r => r.date), datasets: [{ label: "Plants With Missing Slots", data: rows.map(r => r.missing_plants), backgroundColor: "#f59e0b", borderRadius: 4 }, { label: "Full-Day Missing", data: rows.map(r => r.full_day_missing_plants), backgroundColor: "#ef4444", borderRadius: 4 }] },
-            options: { responsive: true, plugins: { legend: { display: true, labels: { boxWidth: 12 } } }, scales: { y: { beginAtZero: true } } }
-        });
-    }
-
-    function renderMissingTimeChart(rows) {
-        if (missingTimeChart) missingTimeChart.destroy();
-        const ctx = document.getElementById("missingTimeChart").getContext("2d");
-        missingTimeChart = new Chart(ctx, {
-            type: "line",
-            data: { labels: rows.map(r => r.time), datasets: [{ label: "Avg Missing Plants", data: rows.map(r => r.missing_plants), borderColor: "#ef4444", backgroundColor: "rgba(239, 68, 68, 0.12)", fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5 }] },
-            options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { maxTicksLimit: 12 } }, y: { beginAtZero: true } } }
-        });
-    }
-
-    function renderSlotDistribution(rows) {
-        if (slotDistributionChart) slotDistributionChart.destroy();
-        const ctx = document.getElementById("slotDistributionChart").getContext("2d");
-        slotDistributionChart = new Chart(ctx, {
-            type: "doughnut",
-            data: { labels: rows.map(r => r.name), datasets: [{ data: rows.map(r => r.plants), backgroundColor: ["#22c55e", "#facc15", "#f59e0b", "#f97316", "#ef4444"], borderWidth: 0 }] },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "right", labels: { boxWidth: 10, font: {size: 11} } } }, cutout: '70%' }
-        });
-    }
-
-    function renderTakeaways(data) {
-        const dist = data.availability_distribution;
-        const k = data.kpis;
-        const high = dist.find(x => x.band === "95-99.99%") || {plants: 0, percent: 0};
-        const perfect = dist.find(x => x.band === "100%") || {plants: 0, percent: 0};
-        const partial = dist.find(x => x.band === "50-95%") || {plants: 0, percent: 0};
-        const zero = dist.find(x => x.band === "0%") || {plants: 0, percent: 0};
-
-        document.getElementById("takeaways").innerHTML = `
-            <div class="takeaway success"><b>${perfect.plants} plants have 100% availability</b><br><span style="color:#6b7280">Completely healthy plants in this period.</span></div>
-            <div class="takeaway success"><b>${high.plants} plants have high availability</b><br><span style="color:#6b7280">${high.percent}% plants are in 95-99.99% band.</span></div>
-            <div class="takeaway warning"><b>${partial.plants} plants show partial degradation</b><br><span style="color:#6b7280">Monitor these plants for repeated missing slots.</span></div>
-            <div class="takeaway danger"><b>${zero.plants} plants are fully missing</b><br><span style="color:#6b7280">Immediate attention required.</span></div>
-            <div class="takeaway info"><b>Worst plant: ${k.worst_plant}</b><br><span style="color:#6b7280">Availability: ${k.worst_plant_availability}% | Missing Slots: ${k.worst_plant_missing}</span></div>
-            <div class="takeaway info"><b>Full-day missing cases:</b> ${k.full_day_missing_cases}<br><span style="color:#6b7280">This counts plant-day full outages.</span></div>
-        `;
-    }
-
-    // Sidebar navigation logic
-    function toggleReports(e){ if(e) e.stopPropagation(); var s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
-    (function(){var s=document.getElementById('reports-sub'); if(s && s.querySelector('.subitem.active')) s.classList.add('open');})();
-
-    loadDashboard();
-    function toggleSettle(e){ if(e) e.stopPropagation(); var s=document.getElementById('settle-sub'); if(s) s.classList.toggle('open'); }
-(function(){var s=document.getElementById('settle-sub'); if(s && s.querySelector('.subitem.active')) s.classList.add('open');})();
+loadDashboard();
 </script>
 </body>
 </html>

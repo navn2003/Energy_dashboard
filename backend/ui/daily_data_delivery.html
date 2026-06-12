@@ -77,8 +77,7 @@
       <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
     </div>
     <div style="margin-top:10px;">
-            <div class="nav-item"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
-            <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+<div class="nav-item" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> Dashboard</div>            <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
             <div class="nav-item" id="settle-toggle" onclick="toggleSettle(event)">
   <i class="ti ti-receipt-2"></i> Settlement
   <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
@@ -96,7 +95,7 @@
             </div>
             <div class="submenu" id="reports-sub">
                 <!-- Moved Dashboard into Reports -->
-                <div class="subitem" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
+                <div class="subitem" onclick="window.location.href='scada_missing.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
                 
                 <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
                 <div class="subitem active" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
@@ -190,7 +189,7 @@ function renderDbBox(slotId, subId, comp, expected, companyName, date){
       : (ok ? '<span class="count ok">COMPLETE</span>' : '<span class="count bad">PARTIAL</span>');
     const dlCell = r.dss === 0
       ? '<span class="dl disabled"><i class="ti ti-ban"></i> —</span>'
-      : `<a class="dl" href="${API_BASE}/api/daily-delivery/db-download?company=${encodeURIComponent(companyName)}&revision=${rev}&date=${encodeURIComponent(date)}"><i class="ti ti-download"></i> CSV</a>`;
+      : `<a class="dl" href="${API_BASE}/api/daily-delivery/db-download?company=${encodeURIComponent(companyName)}&revision=${rev}&date=${encodeURIComponent(date)}&token=${sessionStorage.getItem('auth_token')}"><i class="ti ti-download"></i> CSV</a>`;
     html += `<tr>
       <td class="rev">${rev}${rawLbl}</td>
       <td class="center"><span class="count ${cls}">${r.dss} / ${expected}</span></td>
@@ -327,7 +326,7 @@ async function load(){
       const countTxt = r.found ? `${r.present} / ${r.expected}` : 'NOT FOUND';
       const sizeTxt = r.found ? ` <span style="color:#475569;font-size:10px">(${r.size_kb} KB)</span>` : '';
       const dl = r.found
-        ? `<a class="dl" href="${API_BASE}/api/daily-delivery/download?file=${encodeURIComponent(r.file)}"><i class="ti ti-download"></i> CSV</a>`
+        ? `<a class="dl" href="${API_BASE}/api/daily-delivery/download?file=${encodeURIComponent(r.file)}&token=${sessionStorage.getItem('auth_token')}"><i class="ti ti-download"></i> CSV</a>`
         : `<span class="dl disabled"><i class="ti ti-ban"></i> —</span>`;
       html += `<tr>
         <td class="file-cell">${r.file}${sizeTxt}</td>

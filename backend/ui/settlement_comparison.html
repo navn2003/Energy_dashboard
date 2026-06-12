@@ -42,7 +42,7 @@
   .cmp-head{font-size:14px;font-weight:600;margin-bottom:16px;}
   .cmp-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;}
   @media(max-width:760px){.cmp-grid{grid-template-columns:1fr;}}
-  .co{ }
+  
   .co-name{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;margin-bottom:6px;}
   .dot{width:9px;height:9px;border-radius:99px;display:inline-block;}
   .co-payout{font-size:26px;font-weight:700;line-height:1;}
@@ -66,8 +66,7 @@
       <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
     </div>
     <div style="margin-top:10px;">
-      <div class="nav-item"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
-      <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+<div class="nav-item" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> Dashboard</div>      <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
 
       <div class="nav-item" id="settle-toggle" onclick="toggleSettle(event)">
         <i class="ti ti-receipt-2"></i> Settlement
@@ -85,11 +84,15 @@
         <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
       </div>
       <div class="submenu" id="reports-sub">
+        <div class="subitem" onclick="window.location.href='scada_missing.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
+
         <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
         <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
         <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
       </div>
       <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+                  <div class="nav-item" onclick="logout()"><i class="ti ti-logout"></i> Logout</div>
+
     </div>
     <div class="smeta">ISPL · Quenext · Solar · Wind<br>DA2 · R16 · Settlement v1</div>
   </div>

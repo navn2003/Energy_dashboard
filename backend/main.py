@@ -83,6 +83,10 @@ async def _auth_guard(request: Request, call_next):
     if path.startswith("/api/") and path not in _PUBLIC_API and request.method != "OPTIONS":
         auth = request.headers.get("Authorization", "")
         token = auth[7:] if auth.startswith("Bearer ") else ""
+        # Fallback: file downloads use window.open / <a href> which can't send an
+        # Authorization header, so allow the token via ?token=... query param too.
+        if not token:
+            token = request.query_params.get("token", "")
         if not _verify_token(token):
             return JSONResponse({"error": "Unauthorized", "auth_required": True},
                                 status_code=401)
@@ -1407,7 +1411,7 @@ def plant_list():
         return JSONResponse({"error": str(e), "traceback": traceback.format_exc()}, status_code=500)
 
 
-@app.get("/api/dashboard")
+@app.get("/api/scada-dashboard")
 def dashboard_api(report_date: str = Query(...), period: str = Query("daily")):
     try:
         period = period.lower().strip()
@@ -1531,6 +1535,10 @@ def dashboard_api(report_date: str = Query(...), period: str = Query("daily")):
         print(traceback.format_exc())
         return JSONResponse({"error": str(e), "traceback": traceback.format_exc()}, status_code=500)
 # This tells FastAPI that your HTML files are in the 'ui' folder
+# ── Daily Forecast Analysis Dashboard (merged from main(1).py) ───────────────
+from dashboard_api import router as dashboard_router
+app.include_router(dashboard_router)
+
 ui_path = os.path.join(os.path.dirname(__file__), "ui")
 if os.path.exists(ui_path):
     app.mount("/", StaticFiles(directory=ui_path, html=True), name="ui")
