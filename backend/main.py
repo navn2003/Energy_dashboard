@@ -412,85 +412,87 @@ def get_chart_daily(
 ):
     """
     Returns 96-slot (15-min) forecast vs actual data for charting.
-    Pulls strictly from dss_forecast_aggregated.
 
-    Each vendor stores the same logical revision under a different raw code:
+    Sources (per request):
+        ISPL forecast    -> dss_forecast_ispl     (per-DSS, summed per slot)
+        Quenext forecast -> dss_forecast_quenext  (per-DSS, summed per slot)
+        Actual (SCADA)   -> dss_forecast_aggregated.total_scada
+
+    The per-vendor tables have no energy_type column, so we JOIN plant_master
+    on dss_id and filter by plant_type (SOLAR/WIND) to honour the energy toggle.
+
+    Revision codes per vendor:
         Logical R16 (intra-day):  ISPL='R20',  Quenext='R-16'
-        Logical DA2 (day-ahead):  ISPL='R02',  Quenext='Rd2'
-    So we match per-vendor instead of a single revision string.
+        Logical DA2 (day-ahead):  ISPL='R02',  Quenext='RD2'
     """
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
     # 1. Initialize the 96 slots perfectly formatted to HH:MM
     slots = _generate_slots()
-    result_map = {slot: {"slot": slot, "actual": None} for slot in slots}
+    result_map = {slot: {"slot": slot, "actual": None, "ISPL": None, "Quenext": None} for slot in slots}
 
     # 2. Resolve the per-vendor raw revision codes for the requested logical revision.
     rev_logical = (revision or "R16").upper().replace("-", "").replace(" ", "")
     REVISION_MAP = {
         "R16": {"ISPL": "R20",  "Quenext": "R-16"},   # intra-day
-        "DA2": {"ISPL": "R02",  "Quenext": "Rd2"},     # day-ahead
+        "DA2": {"ISPL": "R02",  "Quenext": "RD2"},     # day-ahead
     }
     vendor_codes = REVISION_MAP.get(rev_logical, REVISION_MAP["R16"])
-    ispl_rev = vendor_codes["ISPL"]
-    quen_rev = vendor_codes["Quenext"]
+    energy = (energy_type or "").upper()
 
-    # 3. Match each vendor against its own revision code (case-insensitive).
-    sql = """
-        SELECT
-            DATE_FORMAT(timestamp, '%H:%i') AS time_slot,
-            company_name,
-            revision_number,
-            total_forecast_mw,
-            total_scada
+    def _norm(code):
+        return code.upper().replace("-", "").replace(" ", "")
+
+    # Per-vendor forecast: SUM(forecast_mw) per slot, filtered to the energy type
+    # via plant_master.plant_type, matched on the vendor's own revision code.
+    fc_sql = """
+        SELECT DATE_FORMAT(f.timestamp, '%H:%i') AS time_slot,
+               SUM(f.forecast_mw) AS mw
+        FROM {table} f
+        JOIN plant_master p ON p.dss_id = f.dss_id
+        WHERE DATE(f.timestamp) = %s
+          AND ( %s = '' OR UPPER(p.plant_type) = %s )
+          AND REPLACE(REPLACE(UPPER(f.revision_number), '-', ''), ' ', '') = %s
+        GROUP BY time_slot
+    """
+
+    def _load_vendor(table, raw_rev, out_key):
+        try:
+            cursor.execute(fc_sql.format(table=table),
+                           (date, energy, energy, _norm(raw_rev)))
+            for r in cursor.fetchall():
+                slot = r["time_slot"]
+                if slot in result_map and r["mw"] is not None:
+                    result_map[slot][out_key] = float(r["mw"])
+        except Exception as e:
+            print(f"Chart {out_key} query error: {e}")
+
+    # 3a. ISPL forecast  -> dss_forecast_ispl
+    _load_vendor("dss_forecast_ispl", vendor_codes["ISPL"], "ISPL")
+    # 3b. Quenext forecast -> dss_forecast_quenext
+    _load_vendor("dss_forecast_quenext", vendor_codes["Quenext"], "Quenext")
+
+    # 3c. Actual (SCADA) -> dss_forecast_aggregated
+    actual_sql = """
+        SELECT DATE_FORMAT(timestamp, '%H:%i') AS time_slot,
+               MAX(total_scada) AS actual
         FROM dss_forecast_aggregated
         WHERE DATE(timestamp) = %s
           AND UPPER(energy_type) = %s
-          AND (
-                (UPPER(company_name) LIKE '%%ISPL%%'    AND UPPER(revision_number) = %s)
-             OR (UPPER(company_name) LIKE '%%QUENEXT%%' AND UPPER(revision_number) = %s)
-          )
+        GROUP BY time_slot
     """
-
     try:
-        cursor.execute(sql, (
-            date,
-            (energy_type or "").upper(),
-            ispl_rev.upper(),
-            quen_rev.upper(),
-        ))
-        rows = cursor.fetchall()
+        cursor.execute(actual_sql, (date, energy))
+        for r in cursor.fetchall():
+            slot = r["time_slot"]
+            if slot in result_map and r["actual"] is not None:
+                result_map[slot]["actual"] = float(r["actual"])
     except Exception as e:
-        print(f"Chart query error: {e}")
-        rows = []
+        print(f"Chart actual query error: {e}")
     finally:
         cursor.close()
         conn.close()
-
-    # 4. Map values strictly to frontend format
-    for row in rows:
-        slot_key = row["time_slot"]
-
-        if slot_key in result_map:
-            # Canonicalise company name to the exact keys the UI reads
-            # (frontend expects s.ISPL and s.Quenext).
-            raw = str(row["company_name"] or "").strip().upper()
-            if "QUENEXT" in raw or raw.startswith("QUE"):
-                company = "Quenext"
-            elif "ISPL" in raw:
-                company = "ISPL"
-            else:
-                company = raw  # fallback: store under raw name
-
-            # Map Forecast
-            if row["total_forecast_mw"] is not None:
-                result_map[slot_key][company] = float(row["total_forecast_mw"])
-
-            # Map Actual SCADA (same SCADA value for both vendors; keep first non-null)
-            if row["total_scada"] is not None and result_map[slot_key]["actual"] is None:
-                result_map[slot_key]["actual"] = float(row["total_scada"])
-
 
     return {"slots": list(result_map.values())}
 
@@ -1025,7 +1027,7 @@ _DB_REV_MAP = {
 }
 # Candidate table names (the ISPL table spelling varies in some schemas).
 _DB_TABLES = {
-    "ISPL":    ["dss_forecast_ipsl", "dss_forecast_ispl"],
+    "ISPL":    ["dss_forecast_ispl", "dss_forecast_ispl"],
     "QUENEXT": ["dss_forecast_quenext"],
 }
 
@@ -1193,8 +1195,8 @@ from datetime import datetime as _dtime, timedelta as _td
 
 # (company_label, logical_revision, table, normalized_revision_code)
 _DAYTIME_GROUPS = [
-    ("ISPL",    "R16", "dss_forecast_ipsl",    "R20"),  # ISPL intra-day
-    ("ISPL",    "DA2", "dss_forecast_ipsl",    "R02"),  # ISPL day-ahead
+    ("ISPL",    "R16", "dss_forecast_ispl",    "R20"),  # ISPL intra-day
+    ("ISPL",    "DA2", "dss_forecast_ispl",    "R02"),  # ISPL day-ahead
     ("Quenext", "R16", "dss_forecast_quenext", "R16"),  # Quenext intra-day (stored 'R-16')
     ("Quenext", "DA2", "dss_forecast_quenext", "RD2"),  # Quenext day-ahead
 ]
@@ -1534,7 +1536,155 @@ def dashboard_api(report_date: str = Query(...), period: str = Query("daily")):
     except Exception as e:
         print(traceback.format_exc())
         return JSONResponse({"error": str(e), "traceback": traceback.format_exc()}, status_code=500)
-# This tells FastAPI that your HTML files are in the 'ui' folder
+# =============================================================================
+# ── DATA ENTRY / MAPPING ENDPOINTS ───────────────────────────────────────────
+# =============================================================================
+from pydantic import BaseModel
+from typing import Optional
+from datetime import date
+
+class MappingRegistration(BaseModel):
+    report_date: date
+    sr_no: Optional[int] = None
+    voltage_level_kv: Optional[int] = None
+    pss_name: str
+    district: Optional[str] = None
+    zone: Optional[str] = None
+    wind_capacity_mw: Optional[float] = 0.0
+    solar_capacity_mw: Optional[float] = 0.0
+    total_capacity_mw: Optional[float] = 0.0
+    uss_id: Optional[str] = None
+    dss_id: str
+    poi_id: Optional[str] = None
+    energy_type: Optional[str] = None
+    mapping_type: Optional[str] = None
+    billing_group: Optional[str] = None
+    other_names: Optional[str] = None
+    merged_with_pss: Optional[str] = None
+
+@app.post("/api/mapping/register")
+def register_mapping(data: MappingRegistration):
+    total_cap = data.total_capacity_mw
+    if not total_cap and (data.wind_capacity_mw or data.solar_capacity_mw):
+        total_cap = (data.wind_capacity_mw or 0.0) + (data.solar_capacity_mw or 0.0)
+
+    sql = """
+        INSERT INTO pss_dss_uss_mapping (
+            report_date, sr_no, voltage_level_kv, pss_name, district, zone,
+            wind_capacity_mw, solar_capacity_mw, total_capacity_mw, uss_id,
+            dss_id, poi_id, energy_type, mapping_type, billing_group,
+            other_names, merged_with_pss
+        ) VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        )
+    """
+    
+    values = (
+        data.report_date, data.sr_no, data.voltage_level_kv, data.pss_name,
+        data.district, data.zone, data.wind_capacity_mw, data.solar_capacity_mw,
+        total_cap, data.uss_id, data.dss_id, data.poi_id, data.energy_type,
+        data.mapping_type, data.billing_group, data.other_names, data.merged_with_pss
+    )
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(sql, values)
+        conn.commit()
+        inserted_id = cursor.lastrowid
+        return {"status": "success", "message": "Mapping registered successfully.", "id": inserted_id}
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse({"error": f"Database error: {str(e)}"}, status_code=500)
+    finally:
+        cursor.close()
+        conn.close()
+
+# ── SOLAR / WIND STATIC DETAILS ──────────────────────────────────────────────
+class SolarStaticDetail(BaseModel):
+    dss_id: str
+    uss_id: Optional[str] = None
+    uss_name: Optional[str] = None
+    dss_name: Optional[str] = None
+    capacity_gen: Optional[float] = None
+    capacity_inj: Optional[float] = None
+    energy_type: Optional[str] = "SOLAR"
+    dss_status: Optional[str] = None
+    location_id: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+@app.post("/api/solar-static/register")
+def register_solar_static(data: SolarStaticDetail):
+    sql = """
+        INSERT INTO solar_static_details (
+            dss_id, uss_id, uss_name, dss_name, capacity_gen, capacity_inj,
+            energy_type, dss_status, location_id, latitude, longitude
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    values = (
+        data.dss_id, data.uss_id, data.uss_name, data.dss_name,
+        data.capacity_gen, data.capacity_inj, data.energy_type,
+        data.dss_status, data.location_id, data.latitude, data.longitude
+    )
+    conn = get_connection(); cursor = conn.cursor()
+    try:
+        cursor.execute(sql, values)
+        conn.commit()
+        return {"status": "success", "message": "Solar detail saved.", "id": data.dss_id}
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse({"error": f"Database error: {str(e)}"}, status_code=500)
+    finally:
+        cursor.close(); conn.close()
+
+
+class WindStaticDetail(BaseModel):
+    dss_id: str
+    uss_id: Optional[str] = None
+    uss_name: Optional[str] = None
+    dss_name: Optional[str] = None
+    wtg_id: Optional[str] = None
+    wtg_name: Optional[str] = None
+    capacity_gen: Optional[float] = None
+    capacity_inj: Optional[float] = None
+    energy_type: Optional[str] = "WIND"
+    dss_status: Optional[str] = None
+    location_id: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    turbine_id: Optional[str] = None
+    manufacturer_name: Optional[str] = None
+    model: Optional[str] = None
+    capacity: Optional[float] = None
+
+@app.post("/api/wind-static/register")
+def register_wind_static(data: WindStaticDetail):
+    sql = """
+        INSERT INTO us_ds_static_details (
+            dss_id, uss_id, uss_name, dss_name, wtg_id, wtg_name,
+            capacity_gen, capacity_inj, energy_type, dss_status, location_id,
+            latitude, longitude, turbine_id, manufacturer_name, model, capacity
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    values = (
+        data.dss_id, data.uss_id, data.uss_name, data.dss_name, data.wtg_id,
+        data.wtg_name, data.capacity_gen, data.capacity_inj, data.energy_type,
+        data.dss_status, data.location_id, data.latitude, data.longitude,
+        data.turbine_id, data.manufacturer_name, data.model, data.capacity
+    )
+    conn = get_connection(); cursor = conn.cursor()
+    try:
+        cursor.execute(sql, values)
+        conn.commit()
+        return {"status": "success", "message": "Wind detail saved.", "id": cursor.lastrowid}
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse({"error": f"Database error: {str(e)}"}, status_code=500)
+    finally:
+        cursor.close(); conn.close()
+
+
 # ── Daily Forecast Analysis Dashboard (merged from main(1).py) ───────────────
 from dashboard_api import router as dashboard_router
 app.include_router(dashboard_router)

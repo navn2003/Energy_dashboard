@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="auth.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wind Static Details - RE Forecast Engine</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-sans,system-ui,-apple-system,sans-serif);}
+  .app{display:flex;min-height:100vh;background:#0d0f14;}
+  .sidebar{width:172px;background:#111318;border-right:0.5px solid #2a2d36;padding:14px 0;flex-shrink:0;}
+  .slogo{display:flex;align-items:center;gap:8px;padding:0 12px 14px;border-bottom:0.5px solid #2a2d36;}
+  .slogo-icon{width:26px;height:26px;background:#0ea5e9;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+  .slogo-t{font-size:11px;font-weight:600;color:#e2e8f0;line-height:1.2;}
+  .slogo-s{font-size:9px;color:#6b7280;}
+  .nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#6b7280;cursor:pointer;}
+  .nav-item:hover{color:#cbd5e1;background:#1a1d25;}
+  .nav-item.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
+  .nav-item i{font-size:14px;}
+  .submenu{display:none;background:#0d0f14;padding:4px 0;border-top:0.5px solid #2a2d36;border-bottom:0.5px solid #2a2d36;}
+  .submenu.open{display:block;}
+  .subitem{padding:6px 12px 6px 30px;font-size:11px;color:#6b7280;cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .subitem:hover{color:#cbd5e1;background:#1a1d25;}
+
+  .main{flex:1;overflow-y:auto;padding:28px 16px 60px;display:flex;flex-direction:column;align-items:center;}
+  .form-col{width:100%;max-width:640px;display:flex;flex-direction:column;gap:14px;}
+  .card{background:#111318;border:0.5px solid #2a2d36;border-radius:10px;padding:22px 24px;}
+  .header-card{padding:0;overflow:hidden;}
+  .header-bar{height:8px;background:#38bdf8;}
+  .header-body{padding:22px 24px;}
+  .header-body h1{font-size:24px;font-weight:600;color:#e2e8f0;margin-bottom:8px;}
+  .header-body p{font-size:13px;color:#94a3b8;line-height:1.5;}
+  .req-note{color:#ef4444;font-size:12px;margin-top:12px;}
+  .q-label{font-size:15px;color:#e2e8f0;font-weight:500;margin-bottom:4px;}
+  .q-label .req{color:#ef4444;margin-left:3px;}
+  .q-hint{font-size:12px;color:#6b7280;margin-bottom:16px;}
+  .ans input,.ans select{width:100%;background:transparent;border:none;border-bottom:1px solid #2a2d36;color:#e2e8f0;font-size:14px;padding:8px 2px;transition:border-color .2s;}
+  .ans input::placeholder{color:#4b5563;}
+  .ans input:focus,.ans select:focus{outline:none;border-bottom:2px solid #38bdf8;}
+  .ans select option{background:#111318;}
+  .ans input[readonly]{color:#6b7280;}
+  .footer-row{display:flex;align-items:center;gap:14px;}
+  .btn-submit{background:#0ea5e9;color:#fff;border:none;padding:10px 26px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .btn-submit:hover{background:#0284c7;}
+  .btn-clear{background:transparent;color:#94a3b8;border:none;font-size:13px;cursor:pointer;}
+  .btn-clear:hover{color:#38bdf8;}
+  #alert{padding:11px 16px;border-radius:8px;font-size:13px;display:none;}
+  .alert-success{background:rgba(16,185,129,.1);color:#10b981;border:0.5px solid #059669;}
+  .alert-error{background:rgba(239,68,68,.1);color:#ef4444;border:0.5px solid #b91c1c;}
+  .footnote{font-size:11px;color:#4b5563;text-align:center;padding-top:6px;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="slogo">
+      <div class="slogo-icon"><i class="ti ti-bolt" style="color:#fff;font-size:13px"></i></div>
+      <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="nav-item" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+      <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+      <div class="nav-item" id="settle-toggle" onclick="toggleSettle(event)">
+        <i class="ti ti-receipt-2"></i> Settlement <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="settle-sub">
+        <div class="subitem" onclick="window.location.href='settlement_ispl.html'"><i class="ti ti-building-factory"></i> ISPL</div>
+        <div class="subitem" onclick="window.location.href='settlement_quenext.html'"><i class="ti ti-building-factory-2"></i> Quenext</div>
+        <div class="subitem" onclick="window.location.href='settlement_comparison.html'"><i class="ti ti-arrows-diff"></i> Comparison</div>
+      </div>
+      <div class="nav-item active" onclick="window.location.href='registration.html'"><i class="ti ti-database"></i> Registration</div>
+      <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+        <i class="ti ti-file-analytics"></i> Reports <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="reports-sub">
+        <div class="subitem" onclick="window.location.href='scada_missing.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
+        <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+        <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
+        <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
+      </div>
+      <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+      <div class="nav-item" onclick="logout()"><i class="ti ti-logout"></i> Logout</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="form-col">
+      <div class="card header-card">
+        <div class="header-bar"></div>
+        <div class="header-body">
+          <h1>Wind Static Details</h1>
+          <p>Step 2 of 2 — add wind plant static details. DSS ID is carried from the mapping you just saved.</p>
+          <div class="req-note">* Required</div>
+        </div>
+      </div>
+      <div id="cards"></div>
+      <div class="card">
+        <div class="footer-row">
+          <button class="btn-submit" id="submitBtn"><i class="ti ti-device-floppy"></i> Save Wind Detail</button>
+          <button class="btn-clear" id="clearBtn">Clear form</button>
+        </div>
+        <div id="alert" style="margin-top:14px;"></div>
+      </div>
+      <div class="footnote">RE Forecast Engine · PSS–DSS–USS Mapping</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000";
+function toggleSettle(e){ document.getElementById('settle-sub').classList.toggle('open'); }
+function toggleReports(e){ document.getElementById('reports-sub').classList.toggle('open'); }
+
+const FIELDS = [
+  {id:'dss_id', label:'DSS ID', type:'text', required:true, hint:'carried from registration', lock:true},
+  {id:'uss_id', label:'USS ID', type:'text', hint:'e.g. USS00022'},
+  {id:'dss_name', label:'DSS Name', type:'text', hint:'e.g. Dahiwadi 132KV'},
+  {id:'uss_name', label:'USS Name', type:'text', hint:'e.g. Dahiwadi 132KV'},
+  {id:'wtg_id', label:'WTG ID', type:'text', hint:'e.g. WTG001'},
+  {id:'wtg_name', label:'WTG Name', type:'text', hint:'Turbine group name'},
+  {id:'capacity_gen', label:'Capacity Gen (MW)', type:'number', hint:'0.000'},
+  {id:'capacity_inj', label:'Capacity Inj (MW)', type:'number', hint:'0.000'},
+  {id:'dss_status', label:'DSS Status', type:'text', hint:'e.g. 1 / ACTIVE'},
+  {id:'location_id', label:'Location ID', type:'text', hint:'e.g. LID02463'},
+  {id:'turbine_id', label:'Turbine ID', type:'text', hint:'e.g. T-22'},
+  {id:'manufacturer_name', label:'Manufacturer', type:'text', hint:'e.g. Suzlon'},
+  {id:'model', label:'Model', type:'text', hint:'e.g. S97'},
+  {id:'capacity', label:'Turbine Capacity (MW)', type:'number', hint:'0.000'},
+  {id:'latitude', label:'Latitude', type:'number', hint:'e.g. 17.56548'},
+  {id:'longitude', label:'Longitude', type:'number', hint:'e.g. 74.5615'},
+];
+
+const PREFILL = Object.fromEntries(new URLSearchParams(location.search));
+
+function fieldCard(f){
+  const val = f.default==='today' ? new Date().toISOString().slice(0,10) : '';
+  let input;
+  if(f.type==='select'){
+    const carriedSel = PREFILL[f.id] || '';
+    input = `<select id="${f.id}">${f.options.map(o=>`<option value="${o}" ${o===carriedSel?'selected':''}>${o||'-- Select --'}</option>`).join('')}</select>`;
+  } else {
+    const stepAttr = f.type==='number' ? 'step="any"' : '';
+    const carried = PREFILL[f.id];
+    const useVal = (carried!==undefined && carried!=='') ? carried : val;
+    const ro = (f.lock && useVal) ? 'readonly' : '';
+    input = `<input id="${f.id}" type="${f.type}" ${stepAttr} value="${useVal}" ${ro} placeholder="Your answer">`;
+  }
+  return `<div class="card">
+    <div class="q-label">${f.label}${f.required?'<span class="req">*</span>':''}</div>
+    <div class="q-hint">${f.hint||'Your answer'}</div>
+    <div class="ans">${input}</div>
+  </div>`;
+}
+
+document.getElementById('cards').innerHTML = FIELDS.map(fieldCard).join('');
+
+document.getElementById('clearBtn').onclick = ()=>{
+  FIELDS.forEach(f=>{ const el=document.getElementById(f.id); if(!el) return;
+    el.value = (f.default==='today') ? new Date().toISOString().slice(0,10) : ''; });
+};
+document.getElementById('submitBtn').onclick = save;
+
+async function save(){
+  const alertDiv = document.getElementById('alert');
+  alertDiv.style.display='none';
+  for(const f of FIELDS){
+    if(f.required && !document.getElementById(f.id).value.trim()){
+      alertDiv.innerHTML = `<i class="ti ti-alert-triangle"></i> Please fill required field: ${f.label}`;
+      alertDiv.className='alert-error'; alertDiv.style.display='block';
+      document.getElementById(f.id).focus(); return;
+    }
+  }
+  const v = id => document.getElementById(id).value.trim();
+  const num = id => { const x=document.getElementById(id).value; return x?parseFloat(x):null; };
+  const str = id => v(id) || null;
+  const payload = {
+    dss_id: v('dss_id'), uss_id: str('uss_id'),
+    uss_name: str('uss_name'), dss_name: str('dss_name'),
+    wtg_id: str('wtg_id'), wtg_name: str('wtg_name'),
+    capacity_gen: num('capacity_gen'), capacity_inj: num('capacity_inj'),
+    energy_type: "WIND", dss_status: str('dss_status'),
+    location_id: str('location_id'),
+    latitude: num('latitude'), longitude: num('longitude'),
+    turbine_id: str('turbine_id'), manufacturer_name: str('manufacturer_name'),
+    model: str('model'), capacity: num('capacity')
+  };
+  try{
+    const token = sessionStorage.getItem('auth_token') || localStorage.getItem('token') || '';
+    const res = await fetch(`${API_BASE}/api/wind-static/register`,{
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':token?`Bearer ${token}`:''},
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+    if(res.ok){
+      alertDiv.innerHTML = `<i class="ti ti-check"></i> Wind detail for <b>${payload.dss_id}</b> saved. Returning to registration…`;
+      alertDiv.className='alert-success'; alertDiv.style.display='block';
+      setTimeout(()=>location.href='registration.html',900);
+    } else {
+      alertDiv.innerHTML = `<i class="ti ti-alert-triangle"></i> Error: ${result.error||'Failed to save.'}`;
+      alertDiv.className='alert-error'; alertDiv.style.display='block';
+    }
+  }catch(err){
+    alertDiv.innerHTML = `<i class="ti ti-wifi-off"></i> Network error: backend unreachable on port 8000?`;
+    alertDiv.className='alert-error'; alertDiv.style.display='block';
+  }
+}
+</script>
+</body>
+</html>
