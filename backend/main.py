@@ -1689,6 +1689,10 @@ def register_wind_static(data: WindStaticDetail):
 from dashboard_api import router as dashboard_router
 app.include_router(dashboard_router)
 
+# ── PSS Billing / Settlement (extracted into settlement_api.py) ──────────────
+from settlement_api import router as settlement_router
+app.include_router(settlement_router)
+
 ui_path = os.path.join(os.path.dirname(__file__), "ui")
 if os.path.exists(ui_path):
     app.mount("/", StaticFiles(directory=ui_path, html=True), name="ui")

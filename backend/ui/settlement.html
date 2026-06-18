@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Settlement — RE Forecast Engine</title>
+    <script src="auth.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Arial, sans-serif;
+            background: #0d0f14;
+            color: #e2e8f0;
+        }
+
+        .layout { display: flex; min-height: 100vh; }
+
+        .sidebar {
+            width: 260px;
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            background: linear-gradient(180deg, #071b3a, #0e3165);
+            color: white;
+            padding: 22px 16px;
+        }
+
+        .brand {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 28px;
+        }
+
+        .brand-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 15px;
+            display: grid;
+            place-items: center;
+            font-weight: 900;
+            font-size: 24px;
+            background: linear-gradient(135deg, #22c55e, #38bdf8);
+        }
+
+        .brand-title {
+            font-weight: 900;
+            font-size: 18px;
+            line-height: 1.25;
+        }
+
+        .menu {
+            padding: 13px 14px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            color: #dbeafe;
+            font-weight: 700;
+        }
+
+        .menu.active { background: #2563eb; color: white; }
+
+        .note {
+            position: absolute;
+            left: 16px;
+            right: 16px;
+            bottom: 18px;
+            padding: 14px;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.14);
+            color: #dbeafe;
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        .main {
+            margin-left: 260px;
+            width: calc(100% - 260px);
+            padding: 24px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            gap: 20px;
+            margin-bottom: 18px;
+        }
+
+        h1 { margin: 0; font-size: 28px; }
+
+        .sub {
+            color: #64748b;
+            margin-top: 6px;
+            font-size: 14px;
+        }
+
+        .pill {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 999px;
+            padding: 10px 14px;
+            color: #475569;
+            font-weight: 800;
+            box-shadow: 0 10px 20px rgba(15,23,42,0.05);
+        }
+
+        .filters {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 16px;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 14px;
+            margin-bottom: 18px;
+            box-shadow: 0 10px 25px rgba(15,23,42,0.05);
+        }
+
+        label {
+            display: block;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px 11px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            outline: none;
+            font-size: 14px;
+            background: white;
+        }
+
+        button {
+            padding: 10px 13px;
+            border: 0;
+            border-radius: 10px;
+            background: #2563eb;
+            color: white;
+            font-weight: 900;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .btn-light { background: #e0f2fe; color: #075985; }
+
+        .message {
+            display: none;
+            margin-bottom: 14px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-weight: 800;
+        }
+
+        .message.show { display: block; }
+        .message.error { background: #fee2e2; color: #991b1b; }
+
+        .kpis {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: 0 10px 25px rgba(15,23,42,0.05);
+        }
+
+        .kpi-label { color: #64748b; font-size: 13px; font-weight: 800; }
+        .kpi-value { font-size: 23px; font-weight: 950; margin-top: 8px; word-break: break-word; }
+        .kpi-sub { color: #64748b; font-size: 12px; margin-top: 5px; }
+
+        .company-kpi-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-top: 10px;
+            padding: 8px 10px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 13px;
+        }
+
+        .company-kpi-row span {
+            color: #475569;
+            font-weight: 800;
+        }
+
+        .company-kpi-row b {
+            color: #020617;
+            font-size: 15px;
+            font-weight: 950;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .card h3 { margin: 0 0 12px; font-size: 16px; }
+
+        .summary-section {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 16px;
+        }
+
+        .summary-section + .summary-section { margin-top: 20px; }
+
+        .summary-title {
+            margin: 0 0 14px;
+            font-size: 17px;
+            font-weight: 900;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .summary-title::before {
+            content: "";
+            width: 5px;
+            height: 20px;
+            border-radius: 999px;
+            background: #2563eb;
+            display: inline-block;
+        }
+
+        .revision-box {
+            margin-top: 22px;
+            padding-top: 20px;
+            border-top: 2px dashed #dbe3ef;
+        }
+
+        .chart-wrap { position: relative; height: 240px; width: 100%; }
+        .chart-wrap canvas { max-height: 240px !important; }
+
+        .chart-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 14px;
+            position: relative;
+            height: 240px;
+        }
+        .chart-box canvas { max-height: 210px !important; }
+
+        #typeSummary .rowline {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+        }
+
+        #typeSummary .rowline:last-child { margin-bottom: 0; }
+
+        .table-wrap {
+            overflow: auto;
+            max-height: 640px;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+        }
+
+        table {
+            width: 100%;
+            min-width: 2500px;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: #f8fafc;
+            color: #334155;
+            text-align: left;
+            font-size: 12px;
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        td {
+            padding: 11px 12px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 13px;
+            vertical-align: top;
+        }
+
+        tr:hover td { background: #f8fafc; }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 9px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 900;
+            white-space: nowrap;
+        }
+
+        .blue { background: #dbeafe; color: #1d4ed8; }
+        .green { background: #dcfce7; color: #166534; }
+        .orange { background: #fef3c7; color: #92400e; }
+        .purple { background: #ede9fe; color: #5b21b6; }
+        .red { background: #fee2e2; color: #991b1b; }
+        .gray { background: #e2e8f0; color: #334155; }
+
+        .rowline {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 9px 0;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 13px;
+        }
+
+        .muted { color: #64748b; }
+        .amount { font-weight: 950; }
+
+        .detail-box {
+            display: none;
+            position: fixed;
+            right: 24px;
+            top: 24px;
+            bottom: 24px;
+            width: 520px;
+            z-index: 20;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            box-shadow: 0 30px 80px rgba(15,23,42,.25);
+            padding: 18px;
+            overflow: auto;
+        }
+
+        .detail-box.show { display: block; }
+
+        .close {
+            background: #ef4444;
+            width: auto;
+            padding: 8px 12px;
+            float: right;
+        }
+
+        @media(max-width: 1500px) {
+            .filters { grid-template-columns: repeat(4, 1fr); }
+            .kpis { grid-template-columns: repeat(3, 1fr); }
+            .grid-3 { grid-template-columns: 1fr; }
+        }
+
+        @media(max-width: 900px) {
+            .sidebar { display: none; }
+            .main { margin-left: 0; width: 100%; }
+            .filters { grid-template-columns: 1fr; }
+            .kpis { grid-template-columns: 1fr; }
+            .grid-2 { grid-template-columns: 1fr; }
+            .detail-box { left: 10px; right: 10px; width: auto; }
+        }
+    
+        /* ── App sidebar overrides (dark, 172px, static) ── */
+        .layout { display:flex; min-height:100vh; }
+        .sidebar{ position:static !important; width:172px !important; background:#111318 !important;
+                  border-right:0.5px solid #2a2d36; padding:14px 0 !important; color:#e2e8f0; flex-shrink:0; }
+        .slogo{display:flex;align-items:center;gap:8px;padding:0 12px 14px;border-bottom:0.5px solid #2a2d36;}
+        .slogo-icon{width:26px;height:26px;background:#0ea5e9;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+        .slogo-t{font-size:11px;font-weight:600;color:#e2e8f0;line-height:1.2;}
+        .slogo-s{font-size:9px;color:#6b7280;}
+        .nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#6b7280;cursor:pointer;}
+        .nav-item:hover{color:#cbd5e1;background:#1a1d25;}
+        .nav-item.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
+        .nav-item i{font-size:14px;}
+        .submenu{display:none;background:#0d0f14;padding:4px 0;border-top:0.5px solid #2a2d36;border-bottom:0.5px solid #2a2d36;}
+        .submenu.open{display:block;}
+        .subitem{padding:6px 12px 6px 30px;font-size:11px;color:#6b7280;cursor:pointer;display:flex;align-items:center;gap:6px;}
+        .subitem:hover{color:#cbd5e1;background:#1a1d25;}
+        .subitem.active{color:#38bdf8;}
+        /* main no longer needs left margin since sidebar is static */
+        .main{ margin-left:0 !important; }
+        /* card/panel/table dark remaps */
+        .filters, .card, .panel, .table-wrap, .summary, .kpi, .box { background:#111318 !important; border-color:#2a2d36 !important; color:#e2e8f0; }
+        table th { background:#161a22 !important; color:#94a3b8 !important; }
+        table td { color:#cbd5e1 !important; border-color:#1a1d25 !important; }
+        input, select { background:#0d0f14 !important; color:#e2e8f0 !important; border:1px solid #2a2d36 !important; }
+        h1,h2,h3 { color:#e2e8f0 !important; }
+
+    </style>
+</head>
+
+<body>
+<script>
+  const API_BASE = "http://127.0.0.1:8000";   // match app; "" on Replit/EC2
+  const TOKEN = () => "&token=" + (sessionStorage.getItem('auth_token') || localStorage.getItem('token') || '');
+  function toggleReports(e){ if(e) e.stopPropagation(); var s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
+</script>
+<div class="layout">
+        <aside class="sidebar">
+        <div class="slogo">
+          <div class="slogo-icon"><i class="ti ti-bolt" style="color:#fff;font-size:13px"></i></div>
+          <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
+        </div>
+        <div style="margin-top:10px;">
+          <div class="nav-item" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+          <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+          <!-- <div class="nav-item" onclick="window.location.href='mapping_dashboard.html'"><i class="ti ti-sitemap"></i> Mapping</div> -->
+          <div class="nav-item active" onclick="window.location.href='settlement.html'"><i class="ti ti-receipt-2"></i> Settlement</div>
+          <div class="nav-item" onclick="window.location.href='registration.html'"><i class="ti ti-database"></i> Registration</div>
+          <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+            <i class="ti ti-file-analytics"></i> Reports <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+          </div>
+          <div class="submenu" id="reports-sub">
+            <div class="subitem" onclick="window.location.href='scada_missing.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
+            <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+            <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
+            <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
+          </div>
+          <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+          <div class="nav-item" onclick="logout()"><i class="ti ti-logout"></i> Logout</div>
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="header">
+            <div>
+                <h1>PSS Billing Unit Dashboard</h1>
+                <div class="sub">Billing Month means full month. Example: 2026-05-01 means May 2026.</div>
+            </div>
+            <div class="pill">FastAPI + MySQL</div>
+        </div>
+
+        <div id="msg" class="message"></div>
+
+        <div class="filters">
+            <div>
+                <label>Billing Month</label>
+                <input type="date" id="billingMonth" value="2026-06-01">
+            </div>
+
+            <div>
+                <label>Report Date</label>
+                <input type="date" id="reportDate" value="2026-06-15">
+            </div>
+
+            <div>
+                <label>Company</label>
+                <select id="company">
+                    <option>All</option>
+                    <option>ISPL</option>
+                    <option>Quenext</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Mapping Type</label>
+                <select id="mappingType">
+                    <option>All</option>
+                    <option>HYBRID</option>
+                    <option>MERGED</option>
+                    <option>INDIVIDUAL</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Billing Group</label>
+                <select id="billingGroup">
+                    <option>All</option>
+                    <option>A</option>
+                    <option>B</option>
+                    <option>C</option>
+                    <option>D</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Search</label>
+                <input id="search" placeholder="PSS / DSS / Sr No">
+            </div>
+
+            <div style="display:flex; align-items:end;">
+                <button onclick="loadAll()">Load</button>
+            </div>
+
+            <div style="display:flex; align-items:end;">
+                <button class="btn-light" onclick="exportCsv()">Export CSV</button>
+            </div>
+        </div>
+
+        <div class="kpis">
+            <div class="card">
+                <div class="kpi-label">Billing Units / Plants</div>
+                <div class="kpi-value" id="kpiUnits">0</div>
+                <div class="kpi-sub" id="kpiPlants">0 plants</div>
+            </div>
+
+            <div class="card">
+                <div class="kpi-label">Total Capacity</div>
+                <div class="kpi-value" id="kpiCapacity">0 MW</div>
+                <div class="kpi-sub">Counted once per unit</div>
+            </div>
+
+            <div class="card">
+                <div class="kpi-label">Solar / Wind</div>
+                <div class="kpi-value" id="kpiSolarWind">0 / 0</div>
+                <div class="kpi-sub">MW split</div>
+            </div>
+
+            <div class="card">
+                <div class="kpi-label">Base Monthly</div>
+                <div class="kpi-value" id="kpiBase">₹0</div>
+                <div class="kpi-sub">Counted once per unit</div>
+            </div>
+
+            <div class="card">
+                <div class="kpi-label">Fixed + DA + ID</div>
+
+                <div class="company-kpi-row">
+                    <span>ISPL</span>
+                    <b id="kpiSplitIspl">₹0</b>
+                </div>
+
+                <div class="company-kpi-row">
+                    <span>Quenext</span>
+                    <b id="kpiSplitQuenext">₹0</b>
+                </div>
+
+                <div class="kpi-sub">Company-wise breakup</div>
+            </div>
+
+            <div class="card">
+                <div class="kpi-label">Total Payable</div>
+
+                <div class="company-kpi-row">
+                    <span>ISPL</span>
+                    <b id="kpiPayableIspl">₹0</b>
+                </div>
+
+                <div class="company-kpi-row">
+                    <span>Quenext</span>
+                    <b id="kpiPayableQuenext">₹0</b>
+                </div>
+
+                <div class="kpi-sub">Company-wise payable</div>
+            </div>
+        </div>
+
+        <div class="grid-3">
+            <div class="card">
+                <h3>Company-wise Payable</h3>
+                <div class="chart-wrap"><canvas id="companyChart"></canvas></div>
+            </div>
+
+            <div class="card">
+                <h3>Payment Split</h3>
+                <div class="chart-wrap"><canvas id="splitChart"></canvas></div>
+            </div>
+
+            <div class="card">
+                <h3>Mapping Type Units</h3>
+                <div class="chart-wrap"><canvas id="typeChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <div class="summary-section">
+                    <h3 class="summary-title">Mapping Type Summary</h3>
+                    <div id="typeSummary"></div>
+                </div>
+
+                <div class="summary-section revision-box">
+                    <h3 class="summary-title">Revision-wise Comparison</h3>
+                    <div class="chart-box">
+                        <canvas id="revisionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Billing Group Company Comparison</h3>
+                <div class="chart-wrap"><canvas id="groupCompanyChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom:18px;">
+            <h3>Billing Group Range Definition</h3>
+
+            <div class="table-wrap" style="max-height:none;">
+                <table style="min-width:1500px;">
+                    <thead>
+                    <tr>
+                        <th>Billing Group</th>
+                        <th>No. of Plants</th>
+                        <th>No. of Billing Units</th>
+                        <th>Capacity Range</th>
+                        <th>Solar MW</th>
+                        <th>Wind MW</th>
+                        <th>Total MW</th>
+                        <th>Solar Yearly Amount</th>
+                        <th>Wind Yearly Amount</th>
+                        <th>Total Yearly Amount</th>
+                        <th>Solar Monthly Amount</th>
+                        <th>Wind Monthly Amount</th>
+                        <th>Total Monthly Amount</th>
+                    </tr>
+                    </thead>
+
+                    <tbody>
+                    <tr>
+                        <td><span class="badge green">Group A</span></td>
+                        <td id="groupAPlants">0</td>
+                        <td id="groupAUnits">0</td>
+                        <td>5 MW to 100 MW</td>
+                        <td id="groupASolarMw">0</td>
+                        <td id="groupAWindMw">0</td>
+                        <td id="groupATotalMw">0</td>
+                        <td id="groupASolarYearly">₹0</td>
+                        <td id="groupAWindYearly">₹0</td>
+                        <td id="groupATotalYearly">₹0</td>
+                        <td id="groupASolarMonthly">₹0</td>
+                        <td id="groupAWindMonthly">₹0</td>
+                        <td id="groupATotalMonthly">₹0</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="badge blue">Group B</span></td>
+                        <td id="groupBPlants">0</td>
+                        <td id="groupBUnits">0</td>
+                        <td>&gt;100 MW to 300 MW</td>
+                        <td id="groupBSolarMw">0</td>
+                        <td id="groupBWindMw">0</td>
+                        <td id="groupBTotalMw">0</td>
+                        <td id="groupBSolarYearly">₹0</td>
+                        <td id="groupBWindYearly">₹0</td>
+                        <td id="groupBTotalYearly">₹0</td>
+                        <td id="groupBSolarMonthly">₹0</td>
+                        <td id="groupBWindMonthly">₹0</td>
+                        <td id="groupBTotalMonthly">₹0</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="badge orange">Group C</span></td>
+                        <td id="groupCPlants">0</td>
+                        <td id="groupCUnits">0</td>
+                        <td>&gt;300 MW to 500 MW</td>
+                        <td id="groupCSolarMw">0</td>
+                        <td id="groupCWindMw">0</td>
+                        <td id="groupCTotalMw">0</td>
+                        <td id="groupCSolarYearly">₹0</td>
+                        <td id="groupCWindYearly">₹0</td>
+                        <td id="groupCTotalYearly">₹0</td>
+                        <td id="groupCSolarMonthly">₹0</td>
+                        <td id="groupCWindMonthly">₹0</td>
+                        <td id="groupCTotalMonthly">₹0</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="badge purple">Group D</span></td>
+                        <td id="groupDPlants">0</td>
+                        <td id="groupDUnits">0</td>
+                        <td>&gt;500 MW</td>
+                        <td id="groupDSolarMw">0</td>
+                        <td id="groupDWindMw">0</td>
+                        <td id="groupDTotalMw">0</td>
+                        <td id="groupDSolarYearly">₹0</td>
+                        <td id="groupDWindYearly">₹0</td>
+                        <td id="groupDTotalYearly">₹0</td>
+                        <td id="groupDSolarMonthly">₹0</td>
+                        <td id="groupDWindMonthly">₹0</td>
+                        <td id="groupDTotalMonthly">₹0</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Billing Unit Register <span class="muted" id="rowCount"></span></h3>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Company</th>
+                        <th>Billing Unit</th>
+                        <th>Source Sr Nos</th>
+                        <th>PSS Name</th>
+                        <th>Type</th>
+                        <th>DSS IDs</th>
+                        <th>Solar MW</th>
+                        <th>Wind MW</th>
+                        <th>Total MW</th>
+                        <th>Group</th>
+                        <th>Base Monthly</th>
+                        <th>Solar Base</th>
+                        <th>Wind Base</th>
+                        <th>Fixed</th>
+                        <th>DA</th>
+                        <th>ID</th>
+                        <th>Total Payable</th>
+                        <th>DA Rev</th>
+                        <th>ID Rev</th>
+                        <th>Solar DA</th>
+                        <th>Solar ID</th>
+                        <th>Wind DA</th>
+                        <th>Wind ID</th>
+                        <th>Action</th>
+                    </tr>
+                    </thead>
+
+                    <tbody id="rowsBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div id="detailBox" class="detail-box">
+    <button class="close" onclick="closeDetail()">Close</button>
+    <h2>Billing Unit Detail</h2>
+    <div id="detailContent"></div>
+</div>
+
+<script>
+let companyChart, splitChart, typeChart, groupCompanyChart, revisionChart;
+
+function fmt(n, digits=2) {
+    return Number(n || 0).toLocaleString("en-IN", {
+        maximumFractionDigits: digits,
+        minimumFractionDigits: digits
+    });
+}
+
+function mw(n) {
+    return Number(n || 0).toLocaleString("en-IN", {
+        maximumFractionDigits: 3
+    });
+}
+
+function rupee(n) {
+    return "₹" + fmt(n, 2);
+}
+
+function msg(type, text) {
+    const el = document.getElementById("msg");
+    el.className = "message show " + type;
+    el.textContent = text;
+    setTimeout(() => el.className = "message", 5000);
+}
+
+function filters() {
+    return {
+        billing_month: document.getElementById("billingMonth").value,
+        report_date: document.getElementById("reportDate").value,
+        company: document.getElementById("company").value,
+        mapping_type: document.getElementById("mappingType").value,
+        billing_group: document.getElementById("billingGroup").value,
+        search: document.getElementById("search").value
+    };
+}
+
+function qs(params) {
+    return new URLSearchParams(params).toString();
+}
+
+function badgeType(t) {
+    if (t === "HYBRID") return `<span class="badge orange">HYBRID</span>`;
+    if (t === "MERGED") return `<span class="badge purple">MERGED</span>`;
+    return `<span class="badge blue">INDIVIDUAL</span>`;
+}
+
+function badgeStatus(s) {
+    if (!s) return "";
+    if (s === "Full Pay") return `<span class="badge green">${s}</span>`;
+    if (s === "50% Pay") return `<span class="badge orange">${s}</span>`;
+    if (s === "No Capacity") return `<span class="badge gray">${s}</span>`;
+    return `<span class="badge red">${s}</span>`;
+}
+
+function chartTick(v) {
+    return "₹" + Number(v).toLocaleString("en-IN", {
+        maximumFractionDigits: 0
+    });
+}
+
+async function loadOverview() {
+    const f = filters();
+
+    const params = {
+        billing_month: f.billing_month,
+        report_date: f.report_date,
+        company: f.company,
+        mapping_type: f.mapping_type,
+        billing_group: f.billing_group,
+        search: f.search
+    };
+
+    const res = await fetch(API_BASE + "/api/settlement/overview?" + qs(params) + TOKEN());
+    const data = await res.json();
+
+    if (data.status !== "success") {
+        msg("error", data.message || "Overview error");
+        return;
+    }
+
+    const k = data.kpi || {};
+
+    document.getElementById("kpiUnits").textContent = k.billing_units || 0;
+    document.getElementById("kpiPlants").textContent = `${k.plant_count || 0} plants`;
+
+    document.getElementById("kpiCapacity").textContent = mw(k.total_mw) + " MW";
+    document.getElementById("kpiSolarWind").textContent = mw(k.solar_mw) + " / " + mw(k.wind_mw);
+    document.getElementById("kpiBase").textContent = rupee(k.base_monthly_amount);
+
+    const companyRows = data.company_summary || [];
+
+    const ispl = companyRows.find(r => r.company_name === "ISPL") || {};
+    const quenext = companyRows.find(r => r.company_name === "Quenext") || {};
+
+    const isplSplit =
+        Number(ispl.fixed_amount || 0) +
+        Number(ispl.da_amount || 0) +
+        Number(ispl.id_amount || 0);
+
+    const quenextSplit =
+        Number(quenext.fixed_amount || 0) +
+        Number(quenext.da_amount || 0) +
+        Number(quenext.id_amount || 0);
+
+    document.getElementById("kpiSplitIspl").textContent = rupee(isplSplit);
+    document.getElementById("kpiSplitQuenext").textContent = rupee(quenextSplit);
+
+    document.getElementById("kpiPayableIspl").textContent = rupee(ispl.total_payable || 0);
+    document.getElementById("kpiPayableQuenext").textContent = rupee(quenext.total_payable || 0);
+
+    drawCompanyChart(data.company_summary || []);
+    drawSplitChart(k);
+    drawTypeChart(data.type_summary || []);
+    drawGroupCompanyChart(data.company_group_summary || []);
+    drawRevisionChart(data.revision_summary || []);
+    renderTypeSummary(data.type_summary || []);
+    renderGroupRangeCounts(data.group_range_counts || []);
+}
+
+async function loadRows() {
+    const f = filters();
+
+    const params = {
+        billing_month: f.billing_month,
+        report_date: f.report_date,
+        company: f.company,
+        mapping_type: f.mapping_type,
+        billing_group: f.billing_group,
+        search: f.search,
+        limit: 2000
+    };
+
+    const res = await fetch(API_BASE + "/api/settlement/rows?" + qs(params) + TOKEN());
+    const data = await res.json();
+
+    if (data.status !== "success") {
+        msg("error", data.message || "Rows error");
+        return;
+    }
+
+    renderRows(data.rows || []);
+}
+
+function renderRows(rows) {
+    const body = document.getElementById("rowsBody");
+    body.innerHTML = "";
+
+    document.getElementById("rowCount").textContent = `(${rows.length} rows)`;
+
+    rows.forEach(r => {
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+            <td><b>${r.company_name}</b></td>
+            <td><b>${r.billing_unit_no}</b></td>
+            <td>${r.source_sr_nos || ""}</td>
+            <td><b>${r.pss_name || ""}</b></td>
+            <td>${badgeType(r.mapping_type)}</td>
+            <td>${r.dss_ids || ""}</td>
+            <td>${mw(r.solar_capacity_mw)}</td>
+            <td>${mw(r.wind_capacity_mw)}</td>
+            <td><b>${mw(r.total_capacity_mw)}</b></td>
+            <td><span class="badge gray">${r.billing_group || ""}</span></td>
+            <td>${rupee(r.base_monthly_amount)}</td>
+            <td>${rupee(r.solar_base_amount)}</td>
+            <td>${rupee(r.wind_base_amount)}</td>
+            <td>${rupee(r.fixed_amount)}</td>
+            <td>${rupee(r.da_amount)}</td>
+            <td>${rupee(r.id_amount)}</td>
+            <td><span class="amount">${rupee(r.total_payable)}</span></td>
+            <td>${r.da_revision || ""}</td>
+            <td>${r.id_revision || ""}</td>
+            <td>${nrmseCell(r.solar_da_nrmse, r.solar_da_status)}</td>
+            <td>${nrmseCell(r.solar_id_nrmse, r.solar_id_status)}</td>
+            <td>${nrmseCell(r.wind_da_nrmse, r.wind_da_status)}</td>
+            <td>${nrmseCell(r.wind_id_nrmse, r.wind_id_status)}</td>
+            <td><button class="btn-light" onclick="openDetail(${r.billing_unit_no})">View</button></td>
+        `;
+
+        body.appendChild(tr);
+    });
+}
+
+function nrmseCell(value, status) {
+    if (value === null || value === undefined) {
+        return `${badgeStatus(status || "NRMSE Missing")}`;
+    }
+
+    return `<div>${Number(value).toFixed(4)}%</div>${badgeStatus(status)}`;
+}
+
+function renderTypeSummary(rows) {
+    const box = document.getElementById("typeSummary");
+    box.innerHTML = "";
+
+    rows.forEach(r => {
+        box.innerHTML += `
+            <div class="rowline">
+                <div>
+                    <b>${r.mapping_type}</b><br>
+                    <span class="muted">
+                        ${r.billing_units} units,
+                        ${r.plant_count || 0} plants,
+                        ${mw(r.total_mw)} MW
+                    </span>
+                </div>
+                <div>
+                    <b>${rupee(r.total_payable)}</b><br>
+                    <span class="muted">Base ${rupee(r.base_monthly_amount)}</span>
+                </div>
+            </div>
+        `;
+    });
+}
+
+function renderGroupRangeCounts(rows) {
+    const defaults = { A: {}, B: {}, C: {}, D: {} };
+
+    rows.forEach(r => {
+        const g = r.billing_group;
+        if (defaults[g]) defaults[g] = r;
+    });
+
+    function setGroup(g) {
+        const r = defaults[g] || {};
+        const prefix = "group" + g;
+
+        document.getElementById(prefix + "Plants").textContent = r.plant_count || 0;
+        document.getElementById(prefix + "Units").textContent = r.billing_units || 0;
+
+        document.getElementById(prefix + "SolarMw").textContent = mw(r.solar_capacity_mw || 0);
+        document.getElementById(prefix + "WindMw").textContent = mw(r.wind_capacity_mw || 0);
+        document.getElementById(prefix + "TotalMw").textContent = mw(r.total_capacity_mw || 0);
+
+        document.getElementById(prefix + "SolarYearly").textContent = rupee(r.solar_yearly_amount || 0);
+        document.getElementById(prefix + "WindYearly").textContent = rupee(r.wind_yearly_amount || 0);
+        document.getElementById(prefix + "TotalYearly").textContent = rupee(r.total_yearly_amount || 0);
+
+        document.getElementById(prefix + "SolarMonthly").textContent = rupee(r.solar_monthly_amount || 0);
+        document.getElementById(prefix + "WindMonthly").textContent = rupee(r.wind_monthly_amount || 0);
+        document.getElementById(prefix + "TotalMonthly").textContent = rupee(r.total_monthly_amount || 0);
+    }
+
+    setGroup("A");
+    setGroup("B");
+    setGroup("C");
+    setGroup("D");
+}
+
+function drawCompanyChart(rows) {
+    const labels = rows.map(r => r.company_name);
+    const values = rows.map(r => r.total_payable || 0);
+
+    if (companyChart) companyChart.destroy();
+
+    companyChart = new Chart(document.getElementById("companyChart"), {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{ label: "Total Payable", data: values, borderRadius: 8 }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: c => rupee(c.raw) } }
+            },
+            scales: { y: { beginAtZero: true, ticks: { callback: chartTick } } }
+        }
+    });
+}
+
+function drawSplitChart(k) {
+    const labels = ["Fixed", "DA", "ID"];
+    const values = [k.fixed_amount || 0, k.da_amount || 0, k.id_amount || 0];
+
+    if (splitChart) splitChart.destroy();
+
+    splitChart = new Chart(document.getElementById("splitChart"), {
+        type: "doughnut",
+        data: { labels, datasets: [{ data: values }] },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: { callbacks: { label: c => `${c.label}: ${rupee(c.raw)}` } }
+            }
+        }
+    });
+}
+
+function drawTypeChart(rows) {
+    const labels = rows.map(r => r.mapping_type);
+    const values = rows.map(r => r.billing_units || 0);
+
+    if (typeChart) typeChart.destroy();
+
+    typeChart = new Chart(document.getElementById("typeChart"), {
+        type: "bar",
+        data: {
+            labels,
+            datasets: [{ label: "Billing Units", data: values, borderRadius: 8 }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+}
+
+function drawGroupCompanyChart(rows) {
+    const groups = ["A", "B", "C", "D"];
+
+    const isplValues = groups.map(g => {
+        const r = rows.find(x => x.billing_group === g && x.company_name === "ISPL");
+        return r ? Number(r.total_payable || 0) : 0;
+    });
+
+    const quenextValues = groups.map(g => {
+        const r = rows.find(x => x.billing_group === g && x.company_name === "Quenext");
+        return r ? Number(r.total_payable || 0) : 0;
+    });
+
+    if (groupCompanyChart) groupCompanyChart.destroy();
+
+    groupCompanyChart = new Chart(document.getElementById("groupCompanyChart"), {
+        type: "bar",
+        data: {
+            labels: groups.map(g => "Group " + g),
+            datasets: [
+                { label: "ISPL", data: isplValues, borderRadius: 8 },
+                { label: "Quenext", data: quenextValues, borderRadius: 8 }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: { callbacks: { label: c => `${c.dataset.label}: ${rupee(c.raw)}` } },
+                legend: { position: "bottom" }
+            },
+            scales: { y: { beginAtZero: true, ticks: { callback: chartTick } } }
+        }
+    });
+}
+
+function drawRevisionChart(rows) {
+    const labels = rows.map(r => `${r.company_name} ${r.revision} ${r.component}`);
+    const values = rows.map(r => Number(r.amount || 0));
+
+    if (revisionChart) revisionChart.destroy();
+
+    revisionChart = new Chart(document.getElementById("revisionChart"), {
+        type: "bar",
+        data: {
+            labels: labels,
+            datasets: [{ label: "Revision Amount", data: values, borderRadius: 8 }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: c => rupee(c.raw) } }
+            },
+            scales: { y: { beginAtZero: true, ticks: { callback: chartTick } } }
+        }
+    });
+}
+
+async function openDetail(unitNo) {
+    const f = filters();
+
+    const res = await fetch("" + API_BASE + "/api/settlement/unit-detail?" + qs({
+        billing_month: f.billing_month,
+        report_date: f.report_date,
+        billing_unit_no: unitNo
+    }) + TOKEN());
+
+    const data = await res.json();
+
+    if (data.status !== "success") {
+        msg("error", data.message || "Detail error");
+        return;
+    }
+
+    const box = document.getElementById("detailBox");
+    const content = document.getElementById("detailContent");
+
+    const billing = data.billing || [];
+    const raw = data.raw_rows || [];
+
+    let html = `<h3>Billing rows</h3>`;
+
+    billing.forEach(r => {
+        html += `
+            <div class="rowline">
+                <div>
+                    <b>${r.company_name}</b><br>
+                    <span class="muted">${r.pss_name}</span><br>
+                    ${badgeType(r.mapping_type)}
+                </div>
+                <div><b>${rupee(r.total_payable)}</b></div>
+            </div>
+        `;
+    });
+
+    html += `<h3 style="margin-top:18px;">Raw source rows</h3>`;
+
+    raw.forEach(r => {
+        html += `
+            <div class="rowline">
+                <div>
+                    <b>Sr No ${r.sr_no}</b> - ${r.pss_name}<br>
+                    <span class="muted">DSS: ${r.dss_id || ""}, USS: ${r.uss_id || ""}</span><br>
+                    <span class="muted">Merged to: ${r.merged_to_sr_no || ""} ${r.merged_to_pss_name || ""}</span>
+                </div>
+                <div>
+                    <b>${mw(r.total_capacity_mw)} MW</b><br>
+                    <span class="muted">S ${mw(r.solar_capacity_mw)} / W ${mw(r.wind_capacity_mw)}</span>
+                </div>
+            </div>
+        `;
+    });
+
+    content.innerHTML = html;
+    box.classList.add("show");
+}
+
+function closeDetail() {
+    document.getElementById("detailBox").classList.remove("show");
+}
+
+function exportCsv() {
+    const f = filters();
+
+    window.open("" + API_BASE + "/api/settlement/export-csv?" + qs({
+        billing_month: f.billing_month,
+        report_date: f.report_date,
+        company: f.company,
+        mapping_type: f.mapping_type,
+        billing_group: f.billing_group
+    }) + "&token=" + (sessionStorage.getItem('auth_token') || ''), "_blank");
+}
+
+async function loadAll() {
+    await loadOverview();
+    await loadRows();
+}
+
+["billingMonth", "reportDate", "company", "mappingType", "billingGroup"].forEach(id => {
+    document.getElementById(id).addEventListener("change", loadAll);
+});
+
+document.getElementById("search").addEventListener("input", () => {
+    clearTimeout(window.searchTimer);
+    window.searchTimer = setTimeout(loadAll, 400);
+});
+
+loadAll();
+</script>
+</body>
+</html>
