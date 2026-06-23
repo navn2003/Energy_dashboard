@@ -1600,6 +1600,91 @@ def register_mapping(data: MappingRegistration):
         cursor.close()
         conn.close()
 
+
+# ── VIEW + EDIT pss_dss_uss_mapping ──────────────────────────────────────────
+@app.get("/api/mapping/all")
+def mapping_all(report_date: str = Query(None, description="Optional YYYY-MM-DD filter")):
+    """Return all rows of pss_dss_uss_mapping (optionally for one report_date)."""
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        if report_date:
+            cursor.execute("""
+                SELECT id, report_date, sr_no, voltage_level_kv, pss_name, district, zone,
+                       wind_capacity_mw, solar_capacity_mw, total_capacity_mw, uss_id, dss_id,
+                       poi_id, energy_type, mapping_type, billing_group, other_names, merged_with_pss
+                FROM pss_dss_uss_mapping WHERE report_date = %s
+                ORDER BY sr_no, pss_name
+            """, (report_date,))
+        else:
+            cursor.execute("""
+                SELECT id, report_date, sr_no, voltage_level_kv, pss_name, district, zone,
+                       wind_capacity_mw, solar_capacity_mw, total_capacity_mw, uss_id, dss_id,
+                       poi_id, energy_type, mapping_type, billing_group, other_names, merged_with_pss
+                FROM pss_dss_uss_mapping
+                ORDER BY report_date DESC, sr_no, pss_name
+            """)
+        rows = cursor.fetchall()
+        for r in rows:
+            if r.get("report_date") is not None:
+                r["report_date"] = r["report_date"].isoformat()
+        return {"status": "success", "count": len(rows), "rows": rows}
+    except Exception as e:
+        return JSONResponse({"error": f"Database error: {str(e)}"}, status_code=500)
+    finally:
+        cursor.close()
+        conn.close()
+
+
+class MappingUpdate(BaseModel):
+    report_date: Optional[date] = None
+    sr_no: Optional[int] = None
+    voltage_level_kv: Optional[int] = None
+    pss_name: Optional[str] = None
+    district: Optional[str] = None
+    zone: Optional[str] = None
+    wind_capacity_mw: Optional[float] = None
+    solar_capacity_mw: Optional[float] = None
+    total_capacity_mw: Optional[float] = None
+    uss_id: Optional[str] = None
+    dss_id: Optional[str] = None
+    poi_id: Optional[str] = None
+    energy_type: Optional[str] = None
+    mapping_type: Optional[str] = None
+    billing_group: Optional[str] = None
+    other_names: Optional[str] = None
+    merged_with_pss: Optional[str] = None
+
+@app.put("/api/mapping/update/{row_id}")
+def mapping_update(row_id: int, data: MappingUpdate):
+    """Update one pss_dss_uss_mapping row by its primary key id."""
+    fields = data.dict(exclude_unset=True)
+    if not fields:
+        return JSONResponse({"error": "No fields to update."}, status_code=400)
+
+    # Auto-recompute total when wind/solar provided but total not explicitly set.
+    if "total_capacity_mw" not in fields and ("wind_capacity_mw" in fields or "solar_capacity_mw" in fields):
+        fields["total_capacity_mw"] = (fields.get("wind_capacity_mw") or 0.0) + (fields.get("solar_capacity_mw") or 0.0)
+
+    set_clause = ", ".join(f"{k} = %s" for k in fields.keys())
+    values = list(fields.values()) + [row_id]
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(f"UPDATE pss_dss_uss_mapping SET {set_clause} WHERE id = %s", values)
+        conn.commit()
+        if cursor.rowcount == 0:
+            return JSONResponse({"error": f"No row found with id {row_id}."}, status_code=404)
+        return {"status": "success", "message": "Row updated.", "id": row_id}
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse({"error": f"Database error: {str(e)}"}, status_code=500)
+    finally:
+        cursor.close()
+        conn.close()
+
+
 # ── SOLAR / WIND STATIC DETAILS ──────────────────────────────────────────────
 class SolarStaticDetail(BaseModel):
     dss_id: str
