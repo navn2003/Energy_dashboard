@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="auth.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generation Curves - RE Forecast Engine</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-sans,system-ui,-apple-system,sans-serif);}
+  .app{display:flex;min-height:100vh;background:#0d0f14;}
+  .sidebar{width:172px;background:#111318;border-right:0.5px solid #2a2d36;padding:14px 0;flex-shrink:0;}
+  .slogo{display:flex;align-items:center;gap:8px;padding:0 12px 14px;border-bottom:0.5px solid #2a2d36;}
+  .slogo-icon{width:26px;height:26px;background:#0ea5e9;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+  .slogo-t{font-size:11px;font-weight:600;color:#e2e8f0;line-height:1.2;}
+  .slogo-s{font-size:9px;color:#6b7280;}
+  .nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#6b7280;cursor:pointer;}
+  .nav-item:hover{color:#cbd5e1;background:#1a1d25;}
+  .nav-item.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
+  .nav-item i{font-size:14px;}
+  .submenu{display:none;background:#0d0f14;padding:4px 0;border-top:0.5px solid #2a2d36;border-bottom:0.5px solid #2a2d36;}
+  .submenu.open{display:block;}
+  .subitem{padding:6px 12px 6px 30px;font-size:11px;color:#6b7280;cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .subitem:hover{color:#cbd5e1;background:#1a1d25;}
+
+  .main{flex:1;padding:22px;overflow-y:auto;}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px;margin-bottom:18px;}
+  .ptitle{font-size:20px;font-weight:600;color:#e2e8f0;}
+  .psub{font-size:12px;color:#94a3b8;margin-top:3px;}
+  .tools{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+  .fld{display:flex;flex-direction:column;gap:5px;}
+  .fld label{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;}
+  .inp{background:#111318;border:1px solid #2a2d36;color:#e2e8f0;padding:8px 11px;border-radius:6px;font-size:12px;outline:none;}
+  .inp:focus{border-color:#38bdf8;}
+  .btn{background:#38bdf8;color:#06141f;border:none;padding:9px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .btn:hover{background:#0ea5e9;}
+
+  .card{background:#111318;border:0.5px solid #2a2d36;border-radius:10px;padding:18px;margin-bottom:18px;}
+  .card-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+  .dot{width:9px;height:9px;border-radius:99px;display:inline-block;}
+  .card-title{font-size:14px;font-weight:600;color:#e2e8f0;}
+  .card-sub{font-size:11px;color:#6b7280;margin-bottom:12px;}
+  .chart-wrap{position:relative;height:300px;}
+  .empty{color:#6b7280;font-size:12px;}
+  @media(min-width:1200px){
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+    .row2 .card{margin-bottom:0;}
+    .row2{margin-bottom:18px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="slogo">
+      <div class="slogo-icon"><i class="ti ti-bolt" style="color:#fff;font-size:13px"></i></div>
+      <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="nav-item" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+      <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+      <div class="nav-item active" onclick="window.location.href='generation.html'"><i class="ti ti-chart-line"></i> Generation</div>
+      <div class="nav-item" onclick="window.location.href='settlement.html'"><i class="ti ti-receipt-2"></i> Settlement</div>
+      <div class="nav-item" onclick="window.location.href='registration.html'"><i class="ti ti-database"></i> Registration</div>
+      <div class="nav-item" onclick="window.location.href='view_dss.html'"><i class="ti ti-list-details"></i> View DSS</div>
+      <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+        <i class="ti ti-file-analytics"></i> Reports <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="reports-sub">
+        <div class="subitem" onclick="window.location.href='scada_missing.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
+        <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+        <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
+        <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
+      </div>
+      <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+      <div class="nav-item" onclick="logout()"><i class="ti ti-logout"></i> Logout</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="head">
+      <div>
+        <div class="ptitle">Generation Curves</div>
+        <div class="psub">Forecast vs actual across 96 fifteen-minute slots — Solar, Wind, and combined.</div>
+      </div>
+      <div class="tools">
+        <div class="fld"><label>Date</label><input class="inp" type="date" id="date"></div>
+        <div class="fld"><label>Revision</label>
+          <select class="inp" id="revision">
+            <option value="R16">R16 (Intra-day)</option>
+            <option value="DA2">DA2 (Day-ahead)</option>
+          </select>
+        </div>
+        <button class="btn" onclick="loadAll()"><i class="ti ti-refresh"></i> Load</button>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="card">
+        <div class="card-head"><span class="dot" style="background:#f59e0b"></span><span class="card-title">Solar Generation</span></div>
+        <div class="card-sub">Actual vs ISPL / Quenext forecast · <span id="solar-rev"></span></div>
+        <div class="chart-wrap"><canvas id="solar-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="dot" style="background:#38bdf8"></span><span class="card-title">Wind Generation</span></div>
+        <div class="card-sub">Actual vs ISPL / Quenext forecast · <span id="wind-rev"></span></div>
+        <div class="chart-wrap"><canvas id="wind-chart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="dot" style="background:#22c55e"></span><span class="card-title">Solar &amp; Wind — Combined</span></div>
+      <div class="card-sub">Actual generation, solar and wind as separate lines · <span id="both-rev"></span></div>
+      <div class="chart-wrap" style="height:340px;"><canvas id="both-chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = "http://localhost:8000";   // match nrmse_live.html; "" on Replit/EC2
+function toggleReports(e){ if(e) e.stopPropagation(); var s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
+
+let solarC, windC, bothC;
+
+const baseOpts = {
+  responsive:true, maintainAspectRatio:false,
+  interaction:{mode:'index', intersect:false},
+  plugins:{ legend:{ labels:{ color:'#94a3b8', font:{size:11}, boxWidth:14 } } },
+  scales:{
+    x:{ ticks:{ color:'#6b7280', font:{size:9}, maxTicksLimit:12 }, grid:{ color:'rgba(255,255,255,0.04)' } },
+    y:{ ticks:{ color:'#6b7280', font:{size:10} }, grid:{ color:'rgba(255,255,255,0.04)' }, beginAtZero:true }
+  }
+};
+
+function drawFvA(canvasId, prev, d){
+  if(prev) prev.destroy();
+  return new Chart(document.getElementById(canvasId), {
+    type:'line',
+    data:{
+      labels: d.map(s=>s.slot),
+      datasets:[
+        {label:'Actual', data:d.map(s=>s.actual), borderColor:'#22c55e', backgroundColor:'rgba(34,197,94,0.08)', borderWidth:2, pointRadius:0, tension:0.3, fill:true},
+        {label:'ISPL Forecast', data:d.map(s=>s.ISPL), borderColor:'#38bdf8', borderWidth:1.5, pointRadius:0, tension:0.3, borderDash:[5,3]},
+        {label:'Quenext Forecast', data:d.map(s=>s.Quenext), borderColor:'#f59e0b', borderWidth:1.5, pointRadius:0, tension:0.3, borderDash:[2,3]},
+      ]
+    },
+    options: baseOpts
+  });
+}
+
+function drawCombined(solarSlots, windSlots){
+  if(bothC) bothC.destroy();
+  const labels = solarSlots.map(s=>s.slot);
+  bothC = new Chart(document.getElementById('both-chart'), {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'Solar (Actual)', data:solarSlots.map(s=>s.actual), borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.08)', borderWidth:2, pointRadius:0, tension:0.3, fill:true},
+        {label:'Wind (Actual)',  data:windSlots.map(s=>s.actual),  borderColor:'#38bdf8', backgroundColor:'rgba(56,189,248,0.08)', borderWidth:2, pointRadius:0, tension:0.3, fill:true},
+      ]
+    },
+    options: baseOpts
+  });
+}
+
+async function fetchChart(energy, date, rev){
+  const res = await fetch(`${API_BASE}/api/chart/daily?date=${date}&energy_type=${energy}&revision=${rev}`);
+  const j = await res.json();
+  return j.slots || [];
+}
+
+async function loadAll(){
+  const date = document.getElementById('date').value;
+  const rev  = document.getElementById('revision').value;
+  if(!date){ alert('Pick a date'); return; }
+  const revLabel = rev === 'DA2' ? 'DA2 (Day-ahead)' : 'R16 (Intra-day)';
+  document.getElementById('solar-rev').textContent = `${date} · ${revLabel}`;
+  document.getElementById('wind-rev').textContent  = `${date} · ${revLabel}`;
+  document.getElementById('both-rev').textContent  = `${date} · ${revLabel}`;
+  try{
+    const [solar, wind] = await Promise.all([
+      fetchChart('SOLAR', date, rev),
+      fetchChart('WIND',  date, rev),
+    ]);
+    solarC = drawFvA('solar-chart', solarC, solar);
+    windC  = drawFvA('wind-chart',  windC,  wind);
+    drawCombined(solar, wind);
+  }catch(e){
+    console.error(e);
+    alert('Could not load chart data. Is the API running on 8000?');
+  }
+}
+
+// default date = latest available, then load
+(async function init(){
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('date').value = today;
+  try{
+    const res = await fetch(`${API_BASE}/api/available-dates`);
+    const j = await res.json();
+    if(j.dates && j.dates.length){ document.getElementById('date').value = j.dates[0]; }
+  }catch(e){ /* keep today */ }
+  loadAll();
+})();
+</script>
+</body>
+</html>
