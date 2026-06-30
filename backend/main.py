@@ -1025,6 +1025,25 @@ _DB_REV_MAP = {
     "ISPL":    {"R20": "R16", "R02": "DA2"},
     "QUENEXT": {"R-16": "R16", "Rd2": "DA2"},
 }
+
+def _rev_label(company, raw):
+    """Friendly label for a raw revision code (best-effort; falls back to the code)."""
+    raw = str(raw).strip()
+    mapped = _DB_REV_MAP.get(company, {}).get(raw)
+    if mapped:
+        return mapped
+    norm = raw.upper().replace("-", "").replace(" ", "")
+    for k, v in _DB_REV_MAP.get(company, {}).items():
+        if k.upper().replace("-", "").replace(" ", "") == norm:
+            return v
+    # Quenext filename-style codes: 01_00..16_00 = intra-day; 00_00/00_25/00_50/00_75 = day-ahead
+    if company == "QUENEXT":
+        if raw in ("00_00", "00_25", "00_50", "00_75"):
+            return "Day-ahead"
+        m = re.match(r"^(\d{2})_00$", raw)
+        if m and 1 <= int(m.group(1)) <= 16:
+            return f"R{int(m.group(1))} (Intra-day)"
+    return raw
 # Candidate table names (the ISPL table spelling varies in some schemas).
 _DB_TABLES = {
     "ISPL":    ["dss_forecast_ispl", "dss_forecast_ispl"],
@@ -1044,11 +1063,6 @@ def _resolve_table(cursor, candidates):
 
 
 def _db_status_for(company, target_date):
-    rev_map = _DB_REV_MAP[company]
-    revisions = {
-        "R16": {"dss": 0, "blocks": 0, "present": False, "raw": None},
-        "DA2": {"dss": 0, "blocks": 0, "present": False, "raw": None},
-    }
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -1056,7 +1070,7 @@ def _db_status_for(company, target_date):
         if not table:
             return {"error": f"No DB table found for {company} "
                              f"(tried: {', '.join(_DB_TABLES[company])}).",
-                    "revisions": revisions}
+                    "revisions": []}
         sql = f"""
             SELECT revision_number,
                    COUNT(DISTINCT dss_id)   AS dss_count,
@@ -1064,32 +1078,27 @@ def _db_status_for(company, target_date):
             FROM `{table}`
             WHERE forecast_date = %s
             GROUP BY revision_number
+            ORDER BY revision_number
         """
         cursor.execute(sql, (target_date,))
         rows = cursor.fetchall()
     except Exception as e:
-        return {"error": f"DB query failed for {company}: {e}", "revisions": revisions}
+        return {"error": f"DB query failed for {company}: {e}", "revisions": []}
     finally:
         cursor.close()
         conn.close()
 
+    revisions = []
     for r in rows:
         raw = str(r["revision_number"]).strip()
-        logical = rev_map.get(raw)
-        if logical is None:
-            norm = raw.upper().replace("-", "").replace(" ", "")
-            for k, v in rev_map.items():
-                if k.upper().replace("-", "").replace(" ", "") == norm:
-                    logical = v
-                    break
-        if logical in revisions:
-            cnt = int(r["dss_count"])
-            revisions[logical] = {
-                "dss": cnt,
-                "blocks": int(r["blocks"]),
-                "present": cnt > 0,
-                "raw": raw,
-            }
+        cnt = int(r["dss_count"])
+        revisions.append({
+            "code": raw,
+            "label": _rev_label(company, raw),
+            "dss": cnt,
+            "blocks": int(r["blocks"]),
+            "present": cnt > 0,
+        })
     return {"error": None, "revisions": revisions}
 
 
@@ -1141,11 +1150,9 @@ def daily_delivery_db_download(
     reachable (incl. Replit), unlike the SFTP file download.
     """
     comp = "QUENEXT" if "QUE" in company.upper() else "ISPL"
-    rev = revision.upper().replace("-", "").replace(" ", "")
-    rev = "DA2" if rev in ("DA2", "RD2", "R02") else "R16"
-
-    raw_rev = _DB_REV_RAW[comp][rev]
-    raw_norm = raw_rev.upper().replace("-", "").replace(" ", "")
+    # Use the revision code exactly as stored (normalised for hyphen/space/case),
+    # so ANY revision can be downloaded (00_25, 13_00, R20, R02, R-16, Rd2, ...).
+    raw_norm = revision.upper().replace("-", "").replace(" ", "")
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)

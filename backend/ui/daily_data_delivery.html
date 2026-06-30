@@ -170,25 +170,30 @@ function renderDbBox(slotId, subId, comp, expected, companyName, date){
     slot.innerHTML = `<div class="banner banner-err"><i class="ti ti-alert-triangle"></i> ${comp.error}</div>`;
     return;
   }
-  const revs = (comp && comp.revisions) || {};
-  const order = ['R16','DA2'];
+  const revs = (comp && comp.revisions) || [];
+  if (!revs.length){
+    sub.textContent = '';
+    slot.innerHTML = `<div class="banner" style="color:#6b7280;padding:10px;">No revisions loaded for this date.</div>`;
+    return;
+  }
   let html = `<table>
     <thead><tr>
       <th>Revision</th><th class="center">DSS IDs / ${expected}</th><th class="center">Blocks</th><th class="center">Status</th><th class="center">Download</th>
     </tr></thead><tbody>`;
-  order.forEach(rev => {
-    const r = revs[rev] || {dss:0, blocks:0, present:false, raw:null};
+  revs.forEach(r => {
     const ok = r.dss >= expected;
     const cls = r.dss === 0 ? 'bad' : (ok ? 'ok' : 'bad');
-    const rawLbl = r.raw ? ` <span style="color:#475569;font-size:10px">(${r.raw})</span>` : '';
+    const codeLbl = (r.label && r.label !== r.code)
+      ? `${r.label} <span style="color:#475569;font-size:10px">(${r.code})</span>`
+      : `${r.code}`;
     const statusTxt = r.dss === 0
       ? '<span class="count bad">NOT LOADED</span>'
       : (ok ? '<span class="count ok">COMPLETE</span>' : '<span class="count bad">PARTIAL</span>');
     const dlCell = r.dss === 0
       ? '<span class="dl disabled"><i class="ti ti-ban"></i> —</span>'
-      : `<a class="dl" href="${API_BASE}/api/daily-delivery/db-download?company=${encodeURIComponent(companyName)}&revision=${rev}&date=${encodeURIComponent(date)}&token=${sessionStorage.getItem('auth_token')}"><i class="ti ti-download"></i> CSV</a>`;
+      : `<a class="dl" href="${API_BASE}/api/daily-delivery/db-download?company=${encodeURIComponent(companyName)}&revision=${encodeURIComponent(r.code)}&date=${encodeURIComponent(date)}&token=${sessionStorage.getItem('auth_token')}"><i class="ti ti-download"></i> CSV</a>`;
     html += `<tr>
-      <td class="rev">${rev}${rawLbl}</td>
+      <td class="rev">${codeLbl}</td>
       <td class="center"><span class="count ${cls}">${r.dss} / ${expected}</span></td>
       <td class="center" style="color:#94a3b8">${r.blocks}</td>
       <td class="center">${statusTxt}</td>
