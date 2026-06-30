@@ -1189,7 +1189,7 @@ def daily_delivery_db_download(
     ).reset_index().sort_values("block_no")
 
     csv_text = pivot.to_csv(index=False)
-    fname = f"{comp}_{rev}_{date}.csv"
+    fname = f"{comp}_{revision}_{date}.csv"
     return Response(
         content=csv_text,
         media_type="text/csv",
