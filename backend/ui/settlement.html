@@ -425,24 +425,35 @@
           <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
         </div>
         <div style="margin-top:10px;">
-          <div class="nav-item" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
-          <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
-          <div class="nav-item" onclick="window.location.href='generation.html'"><i class="ti ti-chart-line"></i> Generation</div>
-          <!-- <div class="nav-item" onclick="window.location.href='mapping_dashboard.html'"><i class="ti ti-sitemap"></i> Mapping</div> -->
-          <div class="nav-item active" onclick="window.location.href='settlement.html'"><i class="ti ti-receipt-2"></i> Settlement</div>
-          <div class="nav-item" onclick="window.location.href='registration.html'"><i class="ti ti-database"></i> Registration</div>
-          <div class="nav-item" onclick="window.location.href='view_dss.html'"><i class="ti ti-table"></i> View DSS</div>
-          <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
-            <i class="ti ti-file-analytics"></i> Reports <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
-          </div>
-          <div class="submenu" id="reports-sub">
+            <div class="nav-item" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+            <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+            <div class="nav-item" onclick="window.location.href='generation.html'"><i class="ti ti-chart-line"></i> Generation</div>
+            <!-- <div class="nav-item" onclick="window.location.href='mapping_dashboard.html'"><i class="ti ti-sitemap"></i> Mapping</div> -->
+            <div class="nav-item active" onclick="window.location.href='settlement.html'"><i class="ti ti-receipt-2"></i> Settlement</div>
+            <div class="nav-item" onclick="window.location.href='registration.html'"><i class="ti ti-database"></i> Registration</div>
+            <div class="nav-item" onclick="window.location.href='view_dss.html'"><i class="ti ti-table"></i> View DSS</div>
+<div class="nav-item" id="kptcl-toggle" onclick="toggleKptcl(event)">
+        <i class="ti ti-bolt"></i> KPTCL <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu open" id="kptcl-sub">
+        <div class="subitem" onclick="window.location.href='kptcl.html'"><i class="ti ti-coin"></i> Gen Cost</div>
+        <div class="subitem" onclick="window.location.href='unit_master.html'"><i class="ti ti-building-factory-2"></i> Unit Master</div>
+        <div class="subitem" onclick="window.location.href='sch_data.html'"><i class="ti ti-calendar-time"></i> SCH Data</div>
+        <div class="subitem" onclick="window.location.href='ent_data.html'"><i class="ti ti-file-certificate"></i> ENT Data</div>
+        <div class="subitem" onclick="window.location.href='entitlement_data.html'"><i class="ti ti-certificate"></i> Entitlement Data</div>
+        <div class="subitem" onclick="window.location.href='backdown_data.html'"><i class="ti ti-arrow-bar-down"></i> Backdown Data</div>
+        <div class="subitem" onclick="window.location.href='market_parameter_master.html'"><i class="ti ti-settings"></i> Market Parameters</div>
+
+      </div>   
+            <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)"><i class="ti ti-file-analytics"></i> Reports <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i></div>
+            <div class="submenu" id="reports-sub">
             <div class="subitem" onclick="window.location.href='scada_missing.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
             <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
             <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
             <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
-          </div>
-          <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
-          <div class="nav-item" onclick="logout()"><i class="ti ti-logout"></i> Logout</div>
+            </div>
+            <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+            <div class="nav-item" onclick="logout()"><i class="ti ti-logout"></i> Logout</div>
         </div>
     </aside>
 
@@ -749,7 +760,11 @@
 
 <script>
 let companyChart, splitChart, typeChart, groupCompanyChart, revisionChart;
-
+function toggleKptcl(e) { 
+    if(e) e.stopPropagation(); 
+    var s = document.getElementById('kptcl-sub'); 
+    if(s) s.classList.toggle('open'); 
+}
 function fmt(n, digits=2) {
     return Number(n || 0).toLocaleString("en-IN", {
         maximumFractionDigits: digits,

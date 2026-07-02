@@ -1692,6 +1692,156 @@ def mapping_update(row_id: int, data: MappingUpdate):
         conn.close()
 
 
+# ── KPTCL: power_market_db.generation_cost_master (separate DB, same server) ──
+# Columns shown/editable: up to mini_limit_percent. The last 3 (formula, source_file,
+# imported_at) are omitted. id is read-only PK.
+_KPTCL_COLS = [
+    "id", "unit_name", "generator", "station_name", "acronym",
+    "contracted_capacity", "valid_from", "valid_to",
+    "fixed_cost", "variable_cost", "adjusted_variable_cost",
+    "transaction_cost", "trading_margin", "transmission_loss",
+    "must_run", "mini_limit", "pool", "plant_type",
+    "entire_shared_ent", "entitlement_per_unit", "no_of_units",
+    "mintech_per_unit", "mini_limit_percent",
+]
+_KPTCL_EDITABLE = set(_KPTCL_COLS) - {"id"}  # everything except the PK
+
+def _kptcl_conn():
+    """Connection into power_market_db (same MySQL server as energy_monitor)."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("USE power_market_db")
+    cur.close()
+    return conn
+
+@app.get("/api/kptcl/all")
+def kptcl_all():
+    """Return all rows of generation_cost_master (selected columns only)."""
+    cols = ", ".join(f"`{c}`" for c in _KPTCL_COLS)
+    conn = _kptcl_conn()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(f"SELECT {cols} FROM generation_cost_master ORDER BY unit_name, id")
+        rows = cursor.fetchall()
+        for r in rows:
+            for k in ("valid_from", "valid_to"):
+                if r.get(k) is not None:
+                    r[k] = r[k].isoformat()
+            # Decimals -> float for JSON
+            for k, v in list(r.items()):
+                if hasattr(v, "is_integer") is False and v.__class__.__name__ == "Decimal":
+                    r[k] = float(v)
+        return {"status": "success", "count": len(rows), "rows": rows}
+    except Exception as e:
+        return JSONResponse({"error": f"Database error: {str(e)}"}, status_code=500)
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.put("/api/kptcl/update/{row_id}")
+def kptcl_update(row_id: int, data: Dict[str, Any]):
+    """Update one generation_cost_master row by id. Only whitelisted columns."""
+    fields = {k: v for k, v in data.items() if k in _KPTCL_EDITABLE}
+    if not fields:
+        return JSONResponse({"error": "No editable fields to update."}, status_code=400)
+
+    set_clause = ", ".join(f"`{k}` = %s" for k in fields.keys())
+    values = list(fields.values()) + [row_id]
+
+    conn = _kptcl_conn()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(f"UPDATE generation_cost_master SET {set_clause} WHERE id = %s", values)
+        conn.commit()
+        if cursor.rowcount == 0:
+            return JSONResponse({"error": f"No row found with id {row_id}."}, status_code=404)
+        return {"status": "success", "message": "Row updated.", "id": row_id}
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse({"error": f"Database error: {str(e)}"}, status_code=500)
+    finally:
+        cursor.close()
+        conn.close()
+from datetime import timedelta
+
+# ── GENERIC KPTCL ENDPOINTS FOR NEW TABLES ───────────────────────────────────
+
+# Define allowed tables and the columns we want to expose to the UI
+ALLOWED_KPTCL_TABLES = {
+    "backdown_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
+    "ent_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
+    "entitlement_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
+    "sch_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
+    "unit_master": ["id", "unit_name", "generator", "plant_type", "fuel_type", "total_capacity", "contracted_capacity", "min_technical_limit", "time_between_ramp_up_down", "ramp_rate_mw_per_min", "pool", "must_run", "variable_cost", "variable_cost_formula"],
+    "market_parameter_master": ["id", "parameter_name", "parameter_value", "parameter_text", "valid_from", "valid_to"]
+}
+
+@app.get("/api/kptcl/{table_name}/all")
+def kptcl_generic_all(table_name: str):
+    """Return rows from generic KPTCL tables. Block tables are limited to the latest 1500 rows to prevent browser crashes."""
+    if table_name not in ALLOWED_KPTCL_TABLES:
+        return JSONResponse({"error": "Invalid table"}, status_code=400)
+    
+    cols = ", ".join(f"`{c}`" for c in ALLOWED_KPTCL_TABLES[table_name])
+    conn = _kptcl_conn()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # Time-series tables grow massive; order by ID desc and limit to latest data
+        limit_clause = " ORDER BY id DESC LIMIT 1500" if "data" in table_name else " ORDER BY id DESC"
+        
+        cursor.execute(f"SELECT {cols} FROM `{table_name}` {limit_clause}")
+        rows = cursor.fetchall()
+        
+        for r in rows:
+            for k, v in list(r.items()):
+                # Format Dates/Times correctly for JSON and HTML inputs
+                if hasattr(v, "isoformat"):
+                    r[k] = v.isoformat()
+                elif isinstance(v, timedelta):
+                    # Convert MySQL TIME (timedelta) to HH:MM format
+                    secs = int(v.total_seconds())
+                    r[k] = f"{secs // 3600:02d}:{(secs % 3600) // 60:02d}"
+                elif hasattr(v, "is_integer") is False and v.__class__.__name__ == "Decimal":
+                    r[k] = float(v)
+                    
+        return {"status": "success", "count": len(rows), "rows": rows}
+    except Exception as e:
+        return JSONResponse({"error": f"Database error: {str(e)}"}, status_code=500)
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.put("/api/kptcl/{table_name}/update/{row_id}")
+def kptcl_generic_update(table_name: str, row_id: int, data: Dict[str, Any]):
+    """Update one row in a generic KPTCL table."""
+    if table_name not in ALLOWED_KPTCL_TABLES:
+        return JSONResponse({"error": "Invalid table"}, status_code=400)
+
+    editable_cols = set(ALLOWED_KPTCL_TABLES[table_name]) - {"id"}
+    fields = {k: v for k, v in data.items() if k in editable_cols}
+    
+    if not fields:
+        return JSONResponse({"error": "No editable fields to update."}, status_code=400)
+
+    set_clause = ", ".join(f"`{k}` = %s" for k in fields.keys())
+    values = list(fields.values()) + [row_id]
+
+    conn = _kptcl_conn()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(f"UPDATE `{table_name}` SET {set_clause} WHERE id = %s", values)
+        conn.commit()
+        if cursor.rowcount == 0:
+            return JSONResponse({"error": f"No row found with id {row_id}."}, status_code=404)
+        return {"status": "success", "message": "Row updated.", "id": row_id}
+    except Exception as e:
+        conn.rollback()
+        return JSONResponse({"error": f"Database error: {str(e)}"}, status_code=500)
+    finally:
+        cursor.close()
+        conn.close()
+
 # ── SOLAR / WIND STATIC DETAILS ──────────────────────────────────────────────
 class SolarStaticDetail(BaseModel):
     dss_id: str

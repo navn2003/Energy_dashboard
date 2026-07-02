@@ -4,7 +4,7 @@
 <script src="auth.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>View DSS Mapping - RE Forecast Engine</title>
+<title>KPTCL Generation Cost - RE Forecast Engine</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -23,6 +23,7 @@
   .submenu.open{display:block;}
   .subitem{padding:6px 12px 6px 30px;font-size:11px;color:#6b7280;cursor:pointer;display:flex;align-items:center;gap:6px;}
   .subitem:hover{color:#cbd5e1;background:#1a1d25;}
+  .subitem.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
 
   .main{flex:1;padding:22px;overflow:auto;}
   .head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
@@ -42,7 +43,7 @@
   thead th{background:#161a22;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-size:9px;position:sticky;top:0;z-index:2;}
   td{color:#cbd5e1;}
   tr:hover td{background:#13161e;}
-  .cell-input{width:100%;min-width:80px;background:#0d0f14;border:1px solid #38bdf8;color:#e2e8f0;font-size:11px;padding:4px 6px;border-radius:4px;outline:none;}
+  .cell-input{width:100%;min-width:90px;background:#0d0f14;border:1px solid #38bdf8;color:#e2e8f0;font-size:11px;padding:4px 6px;border-radius:4px;outline:none;}
   .act{display:flex;gap:6px;}
   .ibtn{border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;padding:5px 9px;display:inline-flex;align-items:center;gap:4px;}
   .ibtn-edit{background:#1a2535;color:#38bdf8;}
@@ -70,9 +71,11 @@
       <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
       <div class="nav-item" onclick="window.location.href='generation.html'"><i class="ti ti-chart-line"></i> Generation</div>
       <div class="nav-item" onclick="window.location.href='settlement.html'"><i class="ti ti-receipt-2"></i> Settlement</div>
-      <div class="nav-item " onclick="window.location.href='registration.html'"><i class="ti ti-database"></i> Registration</div>
-      <div class="nav-item active" onclick="window.location.href='view_dss.html'"><i class="ti ti-table"></i> View DSS</div>
-<div class="nav-item" id="kptcl-toggle" onclick="toggleKptcl(event)">
+      <div class="nav-item" onclick="window.location.href='registration.html'"><i class="ti ti-database"></i> Registration</div>
+      <div class="nav-item" onclick="window.location.href='view_dss.html'"><i class="ti ti-list-details"></i> View DSS</div>
+      
+      <!-- KPTCL Submenu Added Here -->
+     <div class="nav-item" id="kptcl-toggle" onclick="toggleKptcl(event)">
         <i class="ti ti-bolt"></i> KPTCL <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
       </div>
       <div class="submenu open" id="kptcl-sub">
@@ -83,9 +86,11 @@
         <div class="subitem" onclick="window.location.href='entitlement_data.html'"><i class="ti ti-certificate"></i> Entitlement Data</div>
         <div class="subitem" onclick="window.location.href='backdown_data.html'"><i class="ti ti-arrow-bar-down"></i> Backdown Data</div>
         <div class="subitem" onclick="window.location.href='market_parameter_master.html'"><i class="ti ti-settings"></i> Market Parameters</div>
-
       </div>
-            <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)"><i class="ti ti-file-analytics"></i> Reports <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i></div>
+
+      <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+        <i class="ti ti-file-analytics"></i> Reports <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
       <div class="submenu" id="reports-sub">
         <div class="subitem" onclick="window.location.href='scada_missing.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
         <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
@@ -100,21 +105,19 @@
   <div class="main">
     <div class="head">
       <div>
-        <div class="ptitle">DSS Mapping Table</div>
-        <div class="psub">All rows from <b>pss_dss_uss_mapping</b>. Click <b>Edit</b> on a row to change values, then Save. <span id="count" style="color:#6b7280;"></span></div>
+        <div class="ptitle">KPTCL Generation Cost</div>
+        <div class="psub">All rows from <b>power_market_db.generation_cost_master</b>. Click <b>Edit</b> on a row to change values, then Save. <span id="count" style="color:#6b7280;"></span></div>
       </div>
       <div class="tools">
-        <input class="inp" id="search" placeholder="Filter (PSS / DSS / district…)" oninput="renderRows()">
-        <button class="btn-ghost btn" onclick="window.location.href='registration.html'"><i class="ti ti-plus"></i> New</button>
+        <input class="inp" id="search" placeholder="Filter (unit / station / generator…)" oninput="renderRows()">
+        <button class="btn-ghost btn" onclick="window.location.href='view_dss.html'"><i class="ti ti-arrow-left"></i> View DSS</button>
         <button class="btn" onclick="loadData()"><i class="ti ti-refresh"></i> Reload</button>
       </div>
     </div>
 
     <div class="scroll">
       <table>
-        <thead>
-          <tr id="thead-row"></tr>
-        </thead>
+        <thead><tr id="thead-row"></tr></thead>
         <tbody id="tbody"><tr><td class="empty">Loading…</td></tr></tbody>
       </table>
     </div>
@@ -125,53 +128,52 @@
 <script>
 const API_BASE = "http://127.0.0.1:8000";   // match app; "" on Replit/EC2
 function toggleReports(e){ if(e) e.stopPropagation(); var s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
-function toggleKptcl(e) { 
-    if(e) e.stopPropagation(); 
-    var s = document.getElementById('kptcl-sub'); 
-    if(s) s.classList.toggle('open'); 
-}
-// Columns: key + label + editable + type. (id and total are read-only.)
+function toggleKptcl(e){ if(e) e.stopPropagation(); var s=document.getElementById('kptcl-sub'); if(s) s.classList.toggle('open'); } // Added Toggle Function
+
+// Columns shown/edited (up to mini_limit_percent). id is read-only.
 const COLS = [
-  {k:'id',                label:'ID',        edit:false},
-  {k:'report_date',       label:'Report Date', edit:true, type:'date'},
-  {k:'sr_no',             label:'Sr',        edit:true, type:'number'},
-  {k:'voltage_level_kv',  label:'kV',        edit:true, type:'number'},
-  {k:'pss_name',          label:'PSS Name',  edit:true, type:'text'},
-  {k:'district',          label:'District',  edit:true, type:'text'},
-  {k:'zone',              label:'Zone',      edit:true, type:'text'},
-  {k:'wind_capacity_mw',  label:'Wind',      edit:true, type:'number'},
-  {k:'solar_capacity_mw', label:'Solar',     edit:true, type:'number'},
-  {k:'total_capacity_mw', label:'Total',     edit:false},
-  {k:'uss_id',            label:'USS ID',    edit:true, type:'text'},
-  {k:'dss_id',            label:'DSS ID',    edit:true, type:'text'},
-  {k:'poi_id',            label:'POI ID',    edit:true, type:'text'},
-  {k:'energy_type',       label:'Energy',    edit:true, type:'text'},
-  {k:'mapping_type',      label:'Mapping',   edit:true, type:'text'},
-  {k:'billing_group',     label:'Billing',   edit:true, type:'text'},
-  {k:'other_names',       label:'Other Names', edit:true, type:'text'},
-  {k:'merged_with_pss',   label:'Merged With', edit:true, type:'text'},
+  {k:'id',                     label:'ID',                 edit:false},
+  {k:'unit_name',              label:'Unit Name',          edit:true,  type:'text'},
+  {k:'generator',              label:'Generator',          edit:true,  type:'text'},
+  {k:'station_name',           label:'Station',            edit:true,  type:'text'},
+  {k:'acronym',                label:'Acronym',            edit:true,  type:'text'},
+  {k:'contracted_capacity',    label:'Contracted Cap',     edit:true,  type:'number'},
+  {k:'valid_from',             label:'Valid From',         edit:true,  type:'date'},
+  {k:'valid_to',               label:'Valid To',           edit:true,  type:'date'},
+  {k:'fixed_cost',             label:'Fixed Cost',         edit:true,  type:'number'},
+  {k:'variable_cost',          label:'Variable Cost',      edit:true,  type:'number'},
+  {k:'adjusted_variable_cost', label:'Adj Variable Cost',  edit:true,  type:'number'},
+  {k:'transaction_cost',       label:'Transaction Cost',   edit:true,  type:'number'},
+  {k:'trading_margin',         label:'Trading Margin',     edit:true,  type:'number'},
+  {k:'transmission_loss',      label:'Transmission Loss',  edit:true,  type:'number'},
+  {k:'must_run',               label:'Must Run',           edit:true,  type:'number'},
+  {k:'mini_limit',             label:'Mini Limit',         edit:true,  type:'number'},
+  {k:'pool',                   label:'Pool',               edit:true,  type:'text'},
+  {k:'plant_type',             label:'Plant Type',         edit:true,  type:'text'},
+  {k:'entire_shared_ent',      label:'Entire Shared Ent',  edit:true,  type:'number'},
+  {k:'entitlement_per_unit',   label:'Entitlement/Unit',   edit:true,  type:'number'},
+  {k:'no_of_units',            label:'No. of Units',       edit:true,  type:'number'},
+  {k:'mintech_per_unit',       label:'Mintech/Unit',       edit:true,  type:'number'},
+  {k:'mini_limit_percent',     label:'Mini Limit %',       edit:true,  type:'number'},
 ];
 
-let DATA = [];   // all rows
+let DATA = [];
 let editingId = null;
 
-const TOKEN = () => "&token=" + (sessionStorage.getItem('auth_token') || localStorage.getItem('token') || '');
 function token(){ return sessionStorage.getItem('auth_token') || localStorage.getItem('token') || ''; }
-
 function toast(msg, ok=true){
   const t=document.getElementById('toast');
   t.textContent=msg; t.className=ok?'ok':'bad'; t.style.display='block';
   setTimeout(()=>t.style.display='none', 2600);
 }
 
-// header
 document.getElementById('thead-row').innerHTML =
   COLS.map(c=>`<th>${c.label}</th>`).join('') + '<th>Action</th>';
 
 async function loadData(){
   document.getElementById('tbody').innerHTML = '<tr><td class="empty">Loading…</td></tr>';
   try{
-    const res = await fetch(`${API_BASE}/api/mapping/all?token=${encodeURIComponent(token())}`);
+    const res = await fetch(`${API_BASE}/api/kptcl/all?token=${encodeURIComponent(token())}`);
     const data = await res.json();
     if(data.error){ document.getElementById('tbody').innerHTML=`<tr><td class="empty">${data.error}</td></tr>`; return; }
     DATA = data.rows || [];
@@ -188,7 +190,7 @@ function renderRows(){
   const q = (document.getElementById('search').value||'').toLowerCase();
   const rows = DATA.filter(r=>{
     if(!q) return true;
-    return [r.pss_name,r.dss_id,r.uss_id,r.district,r.zone,r.poi_id]
+    return [r.unit_name,r.station_name,r.generator,r.acronym,r.pool,r.plant_type]
       .some(x => (x||'').toString().toLowerCase().includes(q));
   });
   if(!rows.length){ document.getElementById('tbody').innerHTML='<tr><td class="empty">No rows.</td></tr>'; return; }
@@ -198,9 +200,10 @@ function renderRows(){
     const cells = COLS.map(c=>{
       const val = cellVal(r[c.k]);
       if(editing && c.edit){
-        return `<td><input class="cell-input" data-k="${c.k}" type="${c.type==='number'?'number':(c.type==='date'?'date':'text')}" ${c.type==='number'?'step="any"':''} value="${val}"></td>`;
+        const t = c.type==='number'?'number':(c.type==='date'?'date':'text');
+        return `<td><input class="cell-input" data-k="${c.k}" type="${t}" ${c.type==='number'?'step="any"':''} value="${val}"></td>`;
       }
-      if(c.k==='mapping_type' && val) return `<td><span class="badge">${val}</span></td>`;
+      if(c.k==='plant_type' && val) return `<td><span class="badge">${val}</span></td>`;
       return `<td>${val}</td>`;
     }).join('');
     const action = editing
@@ -228,19 +231,14 @@ async function saveRow(id){
     payload[k] = v;
   });
   try{
-    const res = await fetch(`${API_BASE}/api/mapping/update/${id}?token=${encodeURIComponent(token())}`,{
+    const res = await fetch(`${API_BASE}/api/kptcl/update/${id}?token=${encodeURIComponent(token())}`,{
       method:'PUT',
       headers:{'Content-Type':'application/json','Authorization': token()?`Bearer ${token()}`:''},
       body: JSON.stringify(payload)
     });
     const result = await res.json();
     if(res.ok){
-      // update local copy + recompute total
-      const row = DATA.find(r=>r.id===id);
-      Object.assign(row, payload);
-      if(('wind_capacity_mw' in payload)||('solar_capacity_mw' in payload)){
-        row.total_capacity_mw = (parseFloat(row.wind_capacity_mw)||0)+(parseFloat(row.solar_capacity_mw)||0);
-      }
+      Object.assign(DATA.find(r=>r.id===id), payload);
       editingId = null; renderRows();
       toast(`Row ${id} updated.`, true);
     } else {
