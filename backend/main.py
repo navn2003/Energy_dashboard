@@ -1842,6 +1842,69 @@ def kptcl_generic_update(table_name: str, row_id: int, data: Dict[str, Any]):
         cursor.close()
         conn.close()
 
+
+# Tables that have a NOT-NULL UNIQUE row_hash column that must be filled on insert.
+_KPTCL_HASH_TABLES = {
+    "generation_cost_master", "backdown_data", "ent_data",
+    "entitlement_data", "sch_data", "unit_master", "market_parameter_master",
+}
+
+def _compute_row_hash(fields: dict) -> str:
+    """Deterministic SHA-256 over the provided column values (sorted by key)."""
+    parts = [f"{k}={'' if fields[k] is None else fields[k]}" for k in sorted(fields.keys())]
+    joined = "|".join(parts)
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
+def _table_has_column(cursor, table_name, column):
+    cursor.execute(
+        """SELECT 1 FROM information_schema.columns
+           WHERE table_schema = 'power_market_db' AND table_name = %s AND column_name = %s
+           LIMIT 1""",
+        (table_name, column),
+    )
+    return cursor.fetchone() is not None
+
+@app.post("/api/kptcl/{table_name}/insert")
+def kptcl_generic_insert(table_name: str, data: Dict[str, Any]):
+    """Insert a new row into a generic KPTCL table (add-row from the UI).
+    Auto-fills row_hash for tables that require it."""
+    if table_name not in ALLOWED_KPTCL_TABLES:
+        return JSONResponse({"error": "Invalid table"}, status_code=400)
+
+    insertable_cols = [c for c in ALLOWED_KPTCL_TABLES[table_name] if c != "id"]
+    fields = {k: v for k, v in data.items() if k in insertable_cols and v not in (None, "")}
+
+    if not fields:
+        return JSONResponse({"error": "No values provided to insert."}, status_code=400)
+
+    conn = _kptcl_conn()
+    cursor = conn.cursor()
+    try:
+        # Fill row_hash if the table has such a column (NOT NULL UNIQUE).
+        insert_fields = dict(fields)
+        if _table_has_column(cursor, table_name, "row_hash"):
+            insert_fields["row_hash"] = _compute_row_hash(fields)
+
+        col_clause = ", ".join(f"`{k}`" for k in insert_fields.keys())
+        placeholders = ", ".join(["%s"] * len(insert_fields))
+        values = list(insert_fields.values())
+
+        cursor.execute(
+            f"INSERT INTO `{table_name}` ({col_clause}) VALUES ({placeholders})",
+            values,
+        )
+        conn.commit()
+        return {"status": "success", "message": "Row added.", "id": cursor.lastrowid}
+    except Exception as e:
+        conn.rollback()
+        msg = str(e)
+        if "Duplicate entry" in msg and "row_hash" in msg:
+            return JSONResponse({"error": "An identical row already exists."}, status_code=409)
+        return JSONResponse({"error": f"Database error: {msg}"}, status_code=500)
+    finally:
+        cursor.close()
+        conn.close()
+
 # ── SOLAR / WIND STATIC DETAILS ──────────────────────────────────────────────
 class SolarStaticDetail(BaseModel):
     dss_id: str

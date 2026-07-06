@@ -109,6 +109,7 @@
       </div>
       <div class="tools">
         <input class="inp" id="search" placeholder="Filter parameters..." oninput="renderRows()">
+        <button class="btn" onclick="openAddRow()"><i class="ti ti-plus"></i> Add Row</button>
         <button class="btn" onclick="loadData()"><i class="ti ti-refresh"></i> Reload</button>
       </div>
     </div>
@@ -233,5 +234,53 @@ async function saveRow(id){
 
 loadData();
 </script>
+
+<div id="addModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center;">
+  <div style="background:#111318;border:1px solid #2a2d36;border-radius:12px;padding:22px;width:440px;max-height:85vh;overflow:auto;">
+    <div style="font-size:16px;font-weight:600;color:#e2e8f0;margin-bottom:14px;">Add New Parameter</div>
+    <div id="addFields"></div>
+    <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end;">
+      <button class="btn-ghost btn" onclick="closeAddRow()">Cancel</button>
+      <button class="btn" onclick="submitAddRow()"><i class="ti ti-device-floppy"></i> Save</button>
+    </div>
+  </div>
+</div>
+<script>
+function openAddRow(){
+  document.getElementById('addFields').innerHTML = COLS
+    .filter(c => c.k !== 'id')
+    .map(c => {
+      const t = c.type==='number'?'number':(c.type==='date'?'date':(c.type==='time'?'time':'text'));
+      return `<div style="margin-bottom:12px;">
+        <label style="display:block;font-size:11px;color:#94a3b8;margin-bottom:4px;">${c.label}</label>
+        <input class="inp" style="width:100%;" data-k="${c.k}" type="${t}" ${c.type==='number'?'step="any"':''}>
+      </div>`;
+    }).join('');
+  document.getElementById('addModal').style.display = 'flex';
+}
+function closeAddRow(){ document.getElementById('addModal').style.display = 'none'; }
+
+async function submitAddRow(){
+  const payload = {};
+  document.querySelectorAll('#addFields .inp').forEach(inp=>{
+    let v = inp.value;
+    if(v === '') return;
+    if(inp.type === 'number') v = parseFloat(v);
+    payload[inp.dataset.k] = v;
+  });
+  if(!Object.keys(payload).length){ toast('Fill at least one field.', false); return; }
+  try{
+    const res = await fetch(`${API_BASE}/api/kptcl/${TARGET_TABLE}/insert?token=${encodeURIComponent(token())}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization': token()?`Bearer ${token()}`:''},
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+    if(res.ok){ closeAddRow(); toast(`Row added (ID ${result.id}).`, true); loadData(); }
+    else { toast(result.error || 'Insert failed.', false); }
+  }catch(e){ toast('Network error while adding.', false); }
+}
+</script>
+
 </body>
 </html>
