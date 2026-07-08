@@ -106,10 +106,29 @@ def get_nrmse_daily(date: str = Query(..., description="YYYY-MM-DD")):
     cursor = conn.cursor(dictionary=True)
     cursor.execute(sql, (date,))
     rows = cursor.fetchall()
+
+    result = _build_nrmse_response(rows)
+
+    # Override Quenext R16 (intra-day) from the dedicated quenext_nrmse table,
+    # for both solar and wind, by date + energy_type.
+    try:
+        cursor.execute(
+            "SELECT energy_type, nrmse FROM quenext_nrmse WHERE `date` = %s",
+            (date,),
+        )
+        for r in cursor.fetchall():
+            et = (r["energy_type"] or "").strip().lower()
+            if et not in result:
+                result[et] = {}
+            qkey = next((k for k in result[et].keys() if k.lower() == "quenext"), "Quenext")
+            result[et].setdefault(qkey, {})
+            result[et][qkey]["R16"] = float(r["nrmse"]) if r["nrmse"] is not None else None
+    except Exception as e:
+        print(f"quenext_nrmse override skipped: {e}")
+
     cursor.close()
     conn.close()
-
-    return _build_nrmse_response(rows)
+    return result
 
 
 @app.get("/api/nrmse/monthly")
@@ -470,8 +489,32 @@ def get_chart_daily(
 
     # 3a. ISPL forecast  -> dss_forecast_ispl
     _load_vendor("dss_forecast_ispl", vendor_codes["ISPL"], "ISPL")
-    # 3b. Quenext forecast -> dss_forecast_quenext
-    _load_vendor("dss_forecast_quenext", vendor_codes["Quenext"], "Quenext")
+
+    # 3b. Quenext forecast
+    #   - R16 (intra-day): read the pre-aggregated composite table
+    #       composite_r05_r20_forecast_96 (own energy_type, already SUMmed per slot,
+    #       filtered to the Quenext company). selected_revision is already chosen.
+    #   - DA2 (day-ahead): keep the original per-DSS dss_forecast_quenext source.
+    if rev_logical == "R16":
+        comp_sql = """
+            SELECT DATE_FORMAT(timestamp, '%H:%i') AS time_slot,
+                   SUM(total_forecast_mw) AS mw
+            FROM composite_r05_r20_forecast_96
+            WHERE DATE(timestamp) = %s
+              AND ( %s = '' OR UPPER(energy_type) = %s )
+              AND UPPER(company_name) = 'QUENEXT'
+            GROUP BY time_slot
+        """
+        try:
+            cursor.execute(comp_sql, (date, energy, energy))
+            for r in cursor.fetchall():
+                slot = r["time_slot"]
+                if slot in result_map and r["mw"] is not None:
+                    result_map[slot]["Quenext"] = float(r["mw"])
+        except Exception as e:
+            print(f"Chart Quenext (composite) query error: {e}")
+    else:
+        _load_vendor("dss_forecast_quenext", vendor_codes["Quenext"], "Quenext")
 
     # 3c. Actual (SCADA) -> dss_forecast_aggregated
     actual_sql = """
