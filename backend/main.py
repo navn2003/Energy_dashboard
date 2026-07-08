@@ -1299,6 +1299,81 @@ def daily_delivery_daytime_check(date: str = Query(..., description="Forecast da
         conn.close()
 
     return result
+
+
+# ── QUENEXT SFTP DEPOSITION REPORT (weekly ON/OFF/MISSING) ───────────────────
+@app.get("/api/quenext/deposition-week")
+def quenext_deposition_week(week_start: str = Query(..., description="Monday of the week, YYYY-MM-DD")):
+    """Weekly ON_TIME / OFF_TIME / MISSING per revision, read from
+    quenext_deposition_log (populated by deposition_scan.py on the EC2)."""
+    try:
+        d = _dtime.strptime(week_start, "%Y-%m-%d").date()
+    except ValueError:
+        return JSONResponse({"error": "Invalid date. Use YYYY-MM-DD."}, status_code=400)
+
+    monday = d - _td(days=d.weekday())
+    days = [monday + _td(days=i) for i in range(7)]
+    day_strs = [dd.isoformat() for dd in days]
+
+    # Expected revision order: day-ahead first, then R-1..R-16.
+    expected = ["RD1", "RD2", "RD3", "RD4"] + [f"R-{i}" for i in range(1, 17)]
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """SELECT forecast_date, revision, status, deposit_time
+               FROM quenext_deposition_log
+               WHERE forecast_date BETWEEN %s AND %s""",
+            (days[0], days[-1]),
+        )
+        found = {}
+        for r in cursor.fetchall():
+            dt = r["deposit_time"]
+            # deposit_time may come back as timedelta or time
+            if dt is not None and not isinstance(dt, str):
+                total = int(dt.total_seconds()) if hasattr(dt, "total_seconds") else (dt.hour*3600+dt.minute*60+dt.second)
+                dt = f"{total//3600:02d}:{(total%3600)//60:02d}:{total%60:02d}"
+            found[(r["forecast_date"].isoformat(), r["revision"])] = {
+                "status": r["status"], "time": dt,
+            }
+    except Exception as e:
+        return JSONResponse(
+            {"error": f"Read failed: {e}. Has deposition_scan.py run and created "
+                      f"quenext_deposition_log?"},
+            status_code=500,
+        )
+    finally:
+        cursor.close()
+        conn.close()
+
+    revisions, grid = [], {}
+    for rev in expected:
+        on = off = miss = 0
+        row = {}
+        for d_iso in day_strs:
+            cell = found.get((d_iso, rev))
+            if cell is None:
+                row[d_iso] = {"status": "MISSING", "time": None}
+                miss += 1
+            else:
+                row[d_iso] = cell
+                if cell["status"] == "ON_TIME":
+                    on += 1
+                elif cell["status"] == "OFF_TIME":
+                    off += 1
+                else:
+                    miss += 1
+        grid[rev] = row
+        revisions.append({"revision": rev, "on_time": on, "off_time": off, "missing": miss})
+
+    return {
+        "week_start": monday.isoformat(),
+        "week_end": days[-1].isoformat(),
+        "days": day_strs,
+        "revisions": revisions,
+        "grid": grid,
+    }
 # =============================================================================
 # ── SCADA DASHBOARD INTEGRATION ──────────────────────────────────────────────
 # =============================================================================

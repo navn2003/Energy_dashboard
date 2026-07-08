@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="auth.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quenext Deposition - RE Forecast Engine</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-sans,system-ui,-apple-system,sans-serif);}
+  .app{display:flex;min-height:100vh;background:#0d0f14;}
+  .sidebar{width:172px;background:#111318;border-right:0.5px solid #2a2d36;padding:14px 0;flex-shrink:0;}
+  .slogo{display:flex;align-items:center;gap:8px;padding:0 12px 14px;border-bottom:0.5px solid #2a2d36;}
+  .slogo-icon{width:26px;height:26px;background:#0ea5e9;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+  .slogo-t{font-size:11px;font-weight:600;color:#e2e8f0;line-height:1.2;}
+  .slogo-s{font-size:9px;color:#6b7280;}
+  .nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#6b7280;cursor:pointer;}
+  .nav-item:hover{color:#cbd5e1;background:#1a1d25;}
+  .nav-item.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
+  .nav-item i{font-size:14px;}
+  .submenu{display:none;background:#0d0f14;padding:4px 0;border-top:0.5px solid #2a2d36;border-bottom:0.5px solid #2a2d36;}
+  .submenu.open{display:block;}
+  .subitem{padding:6px 12px 6px 30px;font-size:11px;color:#6b7280;cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .subitem:hover{color:#cbd5e1;background:#1a1d25;}
+
+  .main{flex:1;padding:22px;overflow:auto;}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px;margin-bottom:18px;}
+  .ptitle{font-size:20px;font-weight:600;color:#e2e8f0;}
+  .psub{font-size:12px;color:#94a3b8;margin-top:3px;}
+  .tools{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+  .fld{display:flex;flex-direction:column;gap:5px;}
+  .fld label{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;}
+  .inp{background:#111318;border:1px solid #2a2d36;color:#e2e8f0;padding:8px 11px;border-radius:6px;font-size:12px;outline:none;}
+  .inp:focus{border-color:#38bdf8;}
+  .btn{background:#38bdf8;color:#06141f;border:none;padding:9px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .btn:hover{background:#0ea5e9;}
+
+  .card{background:#111318;border:0.5px solid #2a2d36;border-radius:10px;padding:18px;margin-bottom:18px;}
+  .card-title{font-size:14px;font-weight:600;color:#e2e8f0;margin-bottom:2px;}
+  .card-sub{font-size:11px;color:#6b7280;margin-bottom:14px;}
+  .chart-wrap{position:relative;height:420px;}
+  .legend{display:flex;gap:16px;margin-bottom:10px;font-size:11px;color:#94a3b8;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block;}
+
+  .scroll{overflow:auto;border:1px solid #2a2d36;border-radius:10px;background:#111318;}
+  table{border-collapse:collapse;width:100%;font-size:11px;}
+  th,td{border-bottom:1px solid #1a1d25;padding:7px 9px;text-align:center;white-space:nowrap;}
+  thead th{background:#161a22;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-size:9px;position:sticky;top:0;}
+  td.rev{text-align:left;color:#e2e8f0;font-weight:600;}
+  .pill{font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;}
+  .p-on{background:rgba(34,197,94,.15);color:#22c55e;}
+  .p-off{background:rgba(245,158,11,.15);color:#f59e0b;}
+  .p-miss{background:rgba(239,68,68,.15);color:#ef4444;}
+  .empty{color:#6b7280;font-size:13px;padding:40px;text-align:center;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="slogo">
+      <div class="slogo-icon"><i class="ti ti-bolt" style="color:#fff;font-size:13px"></i></div>
+      <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="nav-item" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+      <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+      <div class="nav-item" onclick="window.location.href='generation.html'"><i class="ti ti-chart-line"></i> Generation</div>
+      <div class="nav-item active" onclick="window.location.href='quenext.html'"><i class="ti ti-clock-check"></i> Quenext</div>
+      <div class="nav-item" onclick="window.location.href='settlement.html'"><i class="ti ti-receipt-2"></i> Settlement</div>
+      <div class="nav-item" onclick="window.location.href='registration.html'"><i class="ti ti-database"></i> Registration</div>
+      <!-- <div class="nav-item active" onclick="window.location.href='quenext.html'"><i class="ti ti-clock-check"></i> Quenext</div> -->
+      <div class="nav-item" onclick="window.location.href='view_dss.html'"><i class="ti ti-list-details"></i> View DSS</div>
+      <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+        <i class="ti ti-file-analytics"></i> Reports <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="reports-sub">
+        <div class="subitem" onclick="window.location.href='scada_missing.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
+        <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+        <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
+        <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
+      </div>
+      <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+      <div class="nav-item" onclick="logout()"><i class="ti ti-logout"></i> Logout</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="head">
+      <div>
+        <div class="ptitle">Quenext File Deposition</div>
+        <div class="psub">Weekly ON&nbsp;TIME / OFF&nbsp;TIME / MISSING per revision, from the SFTP server. <span id="range" style="color:#6b7280;"></span></div>
+      </div>
+      <div class="tools">
+        <div class="fld"><label>Pick any day in the week</label><input class="inp" type="date" id="anyday"></div>
+        <button class="btn" onclick="load()"><i class="ti ti-refresh"></i> Load Week</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Days ON&nbsp;TIME / OFF&nbsp;TIME / MISSING — by Revision</div>
+      <div class="card-sub" id="weekLabel"></div>
+      <div class="legend">
+        <span><span class="sw" style="background:#22c55e"></span> On Time</span>
+        <span><span class="sw" style="background:#f59e0b"></span> Off Time</span>
+        <span><span class="sw" style="background:#ef4444"></span> Missing</span>
+      </div>
+      <div class="chart-wrap"><canvas id="chart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Detail grid</div>
+      <div class="card-sub">Status per revision per day (Mon–Sun). Hover a bar above for counts.</div>
+      <div class="scroll">
+        <table>
+          <thead><tr id="grid-head"></tr></thead>
+          <tbody id="grid-body"><tr><td class="empty">Pick a week and load.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = "http://localhost:8000";   // "" on Replit/EC2
+function toggleReports(e){ if(e) e.stopPropagation(); var s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
+function token(){ return sessionStorage.getItem('auth_token') || localStorage.getItem('token') || ''; }
+
+let chart;
+
+function mondayOf(dstr){
+  const d = new Date(dstr + "T00:00:00");
+  const wd = (d.getDay() + 6) % 7;   // Mon=0
+  d.setDate(d.getDate() - wd);
+  return d.toISOString().slice(0,10);
+}
+
+async function load(){
+  const any = document.getElementById('anyday').value;
+  if(!any){ alert('Pick a date'); return; }
+  const monday = mondayOf(any);
+  document.getElementById('weekLabel').textContent = 'Loading…';
+  try{
+    const res = await fetch(`${API_BASE}/api/quenext/deposition-week?week_start=${monday}&token=${encodeURIComponent(token())}`);
+    const data = await res.json();
+    if(data.error){
+      document.getElementById('weekLabel').textContent = data.error;
+      document.getElementById('grid-body').innerHTML = `<tr><td class="empty">${data.error}</td></tr>`;
+      return;
+    }
+    render(data);
+  }catch(e){
+    document.getElementById('weekLabel').textContent = 'Network error. Is the API running?';
+  }
+}
+
+function render(data){
+  document.getElementById('range').textContent = `· ${data.week_start} to ${data.week_end}`;
+  document.getElementById('weekLabel').textContent = `Week: ${data.week_start} (Mon) to ${data.week_end} (Sun)`;
+
+  const labels = data.revisions.map(r => r.revision);
+  const onArr  = data.revisions.map(r => r.on_time);
+  const offArr = data.revisions.map(r => r.off_time);
+  const misArr = data.revisions.map(r => r.missing);
+
+  if(chart) chart.destroy();
+  chart = new Chart(document.getElementById('chart'), {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'On Time',  data:onArr,  backgroundColor:'#22c55e'},
+        {label:'Off Time', data:offArr, backgroundColor:'#f59e0b'},
+        {label:'Missing',  data:misArr, backgroundColor:'#ef4444'},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false },
+        tooltip:{ callbacks:{ title:(it)=>`Revision ${it[0].label}` } } },
+      scales:{
+        x:{ ticks:{ color:'#94a3b8', font:{size:10} }, grid:{ display:false } },
+        y:{ beginAtZero:true, max:7, ticks:{ stepSize:1, color:'#6b7280' },
+            grid:{ color:'rgba(255,255,255,0.05)' },
+            title:{ display:true, text:'No. of days', color:'#94a3b8', font:{size:11} } }
+      }
+    }
+  });
+
+  // detail grid
+  const days = data.days;
+  document.getElementById('grid-head').innerHTML =
+    '<th style="text-align:left">Revision</th>' + days.map(d=>{
+      const wd = new Date(d+'T00:00:00').toLocaleDateString('en-US',{weekday:'short'});
+      return `<th>${wd}<br><span style="color:#475569;font-weight:400">${d.slice(5)}</span></th>`;
+    }).join('') + '<th>On</th><th>Off</th><th>Miss</th>';
+
+  document.getElementById('grid-body').innerHTML = data.revisions.map(r=>{
+    const cells = days.map(d=>{
+      const c = data.grid[r.revision][d];
+      let pill = '<span class="pill p-miss">—</span>';
+      if(c.status==='ON_TIME')  pill = `<span class="pill p-on">${c.time||'ON'}</span>`;
+      else if(c.status==='OFF_TIME') pill = `<span class="pill p-off">${c.time||'OFF'}</span>`;
+      return `<td>${pill}</td>`;
+    }).join('');
+    return `<tr>
+      <td class="rev">${r.revision}</td>${cells}
+      <td style="color:#22c55e;font-weight:600">${r.on_time}</td>
+      <td style="color:#f59e0b;font-weight:600">${r.off_time}</td>
+      <td style="color:#ef4444;font-weight:600">${r.missing}</td>
+    </tr>`;
+  }).join('');
+}
+
+// default to today, load current week
+(function init(){
+  document.getElementById('anyday').value = new Date().toISOString().slice(0,10);
+  load();
+})();
+</script>
+</body>
+</html>
