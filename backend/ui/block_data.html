@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="auth.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Block Data - RE Forecast Engine</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-sans,system-ui,-apple-system,sans-serif);}
+  .app{display:flex;min-height:100vh;background:#0d0f14;}
+  .sidebar{width:172px;background:#111318;border-right:0.5px solid #2a2d36;padding:14px 0;flex-shrink:0;}
+  .slogo{display:flex;align-items:center;gap:8px;padding:0 12px 14px;border-bottom:0.5px solid #2a2d36;}
+  .slogo-icon{width:26px;height:26px;background:#0ea5e9;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+  .slogo-t{font-size:11px;font-weight:600;color:#e2e8f0;line-height:1.2;}
+  .slogo-s{font-size:9px;color:#6b7280;}
+  .nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:12px;color:#6b7280;cursor:pointer;}
+  .nav-item:hover{color:#cbd5e1;background:#1a1d25;}
+  .nav-item.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
+  .nav-item i{font-size:14px;}
+  .submenu{display:none;background:#0d0f14;padding:4px 0;border-top:0.5px solid #2a2d36;border-bottom:0.5px solid #2a2d36;}
+  .submenu.open{display:block;}
+  .subitem{padding:6px 12px 6px 30px;font-size:11px;color:#6b7280;cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .subitem:hover{color:#cbd5e1;background:#1a1d25;}
+  .subitem.active{color:#38bdf8;background:#1a2535;border-right:2px solid #38bdf8;}
+
+  .main{flex:1;padding:22px;overflow:auto;}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px;margin-bottom:16px;}
+  .ptitle{font-size:20px;font-weight:600;color:#e2e8f0;}
+  .psub{font-size:12px;color:#94a3b8;margin-top:3px;}
+  .tools{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+  .fld{display:flex;flex-direction:column;gap:5px;}
+  .fld label{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;}
+  .inp{background:#111318;border:1px solid #2a2d36;color:#e2e8f0;padding:8px 11px;border-radius:6px;font-size:12px;outline:none;}
+  .inp:focus{border-color:#38bdf8;}
+  .btn{background:#38bdf8;color:#06141f;border:none;padding:9px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .btn:hover{background:#0ea5e9;}
+  .btn-green{background:#22c55e;} .btn-green:hover{background:#16a34a;}
+  .btn-ghost{background:transparent;color:#94a3b8;border:1px solid #2a2d36;} .btn-ghost:hover{color:#38bdf8;border-color:#38bdf8;}
+
+  .metric-tabs{display:flex;gap:2px;margin-bottom:14px;flex-wrap:wrap;}
+  .mtab{padding:7px 14px;border-radius:6px;font-size:11px;font-weight:600;color:#6b7280;background:#111318;border:1px solid #2a2d36;cursor:pointer;}
+  .mtab:hover{color:#cbd5e1;border-color:#475569;}
+  .mtab.active{color:#38bdf8;background:#1a2535;border-color:#38bdf8;}
+
+  .scroll{overflow:auto;border:1px solid #2a2d36;border-radius:10px;background:#111318;max-height:calc(100vh - 260px);}
+  table{border-collapse:collapse;font-size:10px;}
+  th,td{border:1px solid #1a1d25;padding:4px 7px;text-align:right;white-space:nowrap;}
+  thead th{background:#161a22;color:#94a3b8;text-transform:uppercase;letter-spacing:.03em;font-size:8px;position:sticky;top:0;z-index:2;}
+  th.corner{text-align:left;z-index:3;left:0;position:sticky;min-width:70px;}
+  td.blk{text-align:center;font-weight:600;color:#e2e8f0;background:#111318;position:sticky;left:0;z-index:1;min-width:70px;}
+  td{color:#cbd5e1;}
+  td.zero{color:#2a2d36;}
+  tr:hover td{background:#13161e;}
+  .empty{color:#6b7280;font-size:13px;padding:40px;text-align:center;}
+
+  .upload-card{background:#111318;border:0.5px solid #2a2d36;border-radius:10px;padding:16px;margin-bottom:16px;display:none;}
+  .upload-card.open{display:block;}
+  .drop{border:2px dashed #2a2d36;border-radius:8px;padding:28px;text-align:center;color:#6b7280;font-size:13px;cursor:pointer;transition:border-color .2s;}
+  .drop:hover,.drop.dragover{border-color:#38bdf8;color:#94a3b8;}
+  .drop input{display:none;}
+  #upload-status{margin-top:12px;font-size:12px;color:#94a3b8;}
+  .s-ok{color:#22c55e;} .s-err{color:#ef4444;}
+  #toast{position:fixed;bottom:20px;right:20px;padding:11px 16px;border-radius:8px;font-size:13px;display:none;z-index:50;}
+  .ok{background:rgba(16,185,129,.15);color:#10b981;border:0.5px solid #059669;}
+  .bad{background:rgba(239,68,68,.15);color:#ef4444;border:0.5px solid #b91c1c;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="sidebar">
+    <div class="slogo">
+      <div class="slogo-icon"><i class="ti ti-bolt" style="color:#fff;font-size:13px"></i></div>
+      <div><div class="slogo-t">RE Forecast</div><div class="slogo-s">Performance Engine</div></div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="nav-item" onclick="window.location.href='dashboard.html'"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+      <div class="nav-item" onclick="window.location.href='nrmse_live.html'"><i class="ti ti-table"></i> NRMSE Matrix</div>
+      <div class="nav-item" onclick="window.location.href='generation.html'"><i class="ti ti-chart-line"></i> Generation</div>
+      <div class="nav-item" onclick="window.location.href='quenext.html'"><i class="ti ti-clock-check"></i> Quenext</div>
+      <div class="nav-item" onclick="window.location.href='settlement.html'"><i class="ti ti-receipt-2"></i> Settlement</div>
+      <div class="nav-item" onclick="window.location.href='registration.html'"><i class="ti ti-database"></i> Registration</div>
+      <div class="nav-item" onclick="window.location.href='view_dss.html'"><i class="ti ti-list-details"></i> View DSS</div>
+      <div class="nav-item" id="kptcl-toggle" onclick="toggleKptcl(event)">
+        <i class="ti ti-bolt"></i> KPTCL <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu open" id="kptcl-sub">
+        <div class="subitem" onclick="window.location.href='kptcl.html'"><i class="ti ti-coin"></i> Gen Cost</div>
+        <div class="subitem" onclick="window.location.href='unit_master.html'"><i class="ti ti-building-factory-2"></i> Unit Master</div>
+        <div class="subitem active" onclick="window.location.href='block_data.html'"><i class="ti ti-grid-dots"></i> Block Data</div>
+        <div class="subitem" onclick="window.location.href='market_parameter_master.html'"><i class="ti ti-settings"></i> Market Parameters</div>
+      </div>
+      <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
+        <i class="ti ti-file-analytics"></i> Reports <i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i>
+      </div>
+      <div class="submenu" id="reports-sub">
+        <div class="subitem" onclick="window.location.href='scada_missing.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
+        <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+        <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
+        <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
+      </div>
+      <div class="nav-item" onclick="window.location.href='forecast.html'"><i class="ti ti-cpu"></i> Run Forecast</div>
+      <div class="nav-item" onclick="logout()"><i class="ti ti-logout"></i> Logout</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="head">
+      <div>
+        <div class="ptitle">Plant Block Data</div>
+        <div class="psub">Wide view — blocks as rows, units as columns, like the Excel. <span id="meta" style="color:#6b7280;"></span></div>
+      </div>
+      <div class="tools">
+        <div class="fld"><label>From</label><input class="inp" type="date" id="date-from"></div>
+        <div class="fld"><label>To</label><input class="inp" type="date" id="date-to"></div>
+        <button class="btn" onclick="loadTable()"><i class="ti ti-refresh"></i> Load</button>
+        <button class="btn btn-ghost" onclick="downloadCsv()"><i class="ti ti-download"></i> Download</button>
+        <button class="btn btn-green" onclick="toggleUpload()"><i class="ti ti-upload"></i> Upload Excel</button>
+      </div>
+    </div>
+
+    <div class="upload-card" id="upload-panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <span style="color:#e2e8f0;font-weight:600;font-size:14px;">Upload KPTCL Excel</span>
+        <button class="btn-ghost btn" onclick="toggleUpload()" style="padding:4px 10px;font-size:11px;"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="drop" id="dropzone" onclick="document.getElementById('fileInput').click()">
+        <i class="ti ti-file-spreadsheet" style="font-size:28px;"></i><br>
+        Drop .xlsx here or click to browse<br>
+        <span style="font-size:10px;color:#475569;">Parses: unitmaster, cost, URS, SCH, ENT, Backdown, Entitlement, Calculated-DC</span>
+        <input type="file" id="fileInput" accept=".xlsx,.xls">
+      </div>
+      <div id="upload-status"></div>
+    </div>
+
+    <div class="metric-tabs" id="tabs"></div>
+
+    <div class="scroll">
+      <table id="tbl">
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"><tr><td class="empty" colspan="3">Pick a date & Load.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000";
+function toggleReports(e){ if(e) e.stopPropagation(); document.getElementById('reports-sub').classList.toggle('open'); }
+function toggleKptcl(e){ if(e) e.stopPropagation(); document.getElementById('kptcl-sub').classList.toggle('open'); }
+function token(){ return sessionStorage.getItem('auth_token') || localStorage.getItem('token') || ''; }
+function toast(msg,ok=true){ const t=document.getElementById('toast'); t.textContent=msg; t.className=ok?'ok':'bad'; t.style.display='block'; setTimeout(()=>t.style.display='none',3000); }
+
+const METRICS = [
+  {key:'urs',          label:'URS'},
+  {key:'sch',          label:'SCH'},
+  {key:'ent',          label:'ENT'},
+  {key:'backdown',     label:'Backdown'},
+  {key:'entitlement',  label:'Entitlement'},
+  {key:'schedule',     label:'Schedule'},
+  {key:'calculated_dc',label:'Calculated-DC'},
+];
+let activeMetric = 'sch';
+let RAW = [];  // raw long-format rows from API
+let UNITS = []; // sorted unit names
+
+// build metric tabs
+document.getElementById('tabs').innerHTML = METRICS.map(m =>
+  `<div class="mtab ${m.key===activeMetric?'active':''}" data-k="${m.key}" onclick="switchMetric('${m.key}')">${m.label}</div>`
+).join('');
+
+function switchMetric(k){
+  activeMetric = k;
+  document.querySelectorAll('.mtab').forEach(t => t.classList.toggle('active', t.dataset.k === k));
+  renderWide();
+}
+
+async function loadTable(){
+  const df = document.getElementById('date-from').value;
+  const dt = document.getElementById('date-to').value;
+  if(!df || !dt){ alert('Pick both From and To dates'); return; }
+  if(df > dt){ alert('From date must be before To date'); return; }
+  document.getElementById('tbody').innerHTML = '<tr><td class="empty" colspan="3">Loading…</td></tr>';
+  try{
+    const res = await fetch(`${API_BASE}/api/kptcl/block-data?date_from=${df}&date_to=${dt}&limit=50000&token=${encodeURIComponent(token())}`);
+    const data = await res.json();
+    if(data.error){ document.getElementById('tbody').innerHTML=`<tr><td class="empty" colspan="3">${data.error}</td></tr>`; return; }
+    RAW = data.rows || [];
+    const unitSet = new Set(); RAW.forEach(r => unitSet.add(r.unit_name));
+    UNITS = [...unitSet].sort();
+    const dateSet = new Set(); RAW.forEach(r => dateSet.add(r.report_date));
+    document.getElementById('meta').textContent = `· ${df} to ${dt} · ${RAW.length} rows · ${UNITS.length} units · ${dateSet.size} days`;
+    renderWide();
+  }catch(e){ document.getElementById('tbody').innerHTML='<tr><td class="empty" colspan="3">Network error.</td></tr>'; }
+}
+
+function renderWide(){
+  if(!RAW.length || !UNITS.length){
+    document.getElementById('thead').innerHTML = '';
+    document.getElementById('tbody').innerHTML = '<tr><td class="empty" colspan="3">No data.</td></tr>';
+    return;
+  }
+  // build header: Date | Block | Time | Unit1 | Unit2 | ...
+  document.getElementById('thead').innerHTML =
+    '<th class="corner">Date</th><th class="corner">Block</th><th class="corner">Time</th>' +
+    UNITS.map(u => `<th title="${u}">${u.length > 12 ? u.slice(0,11)+'…' : u}</th>`).join('');
+
+  // pivot: group by (report_date, block_no) -> { time, units: {name: val} }
+  const blocks = {};
+  RAW.forEach(r => {
+    const key = `${r.report_date}|${r.block_no}`;
+    if(!blocks[key]) blocks[key] = { date: r.report_date, block: r.block_no, time: r.block_time || '', units: {} };
+    blocks[key].units[r.unit_name] = r[activeMetric];
+  });
+
+  const sortedKeys = Object.keys(blocks).sort((a,b) => {
+    const [da, ba] = a.split('|'); const [db, bb] = b.split('|');
+    return da < db ? -1 : da > db ? 1 : Number(ba) - Number(bb);
+  });
+
+  document.getElementById('tbody').innerHTML = sortedKeys.map(key => {
+    const b = blocks[key];
+    const cells = UNITS.map(u => {
+      const v = b.units[u];
+      if(v === null || v === undefined) return '<td class="zero">–</td>';
+      const n = Number(v);
+      if(n === 0) return '<td class="zero">0</td>';
+      return `<td>${n.toFixed(2)}</td>`;
+    }).join('');
+    return `<tr><td class="blk">${b.date}</td><td class="blk">${b.block}</td><td class="blk">${b.time}</td>${cells}</tr>`;
+  }).join('');
+}
+
+// download
+function downloadCsv(){
+  const df = document.getElementById('date-from').value;
+  const dt = document.getElementById('date-to').value;
+  if(!df || !dt){ alert('Pick both From and To dates'); return; }
+  window.open(`${API_BASE}/api/kptcl/block-data/download?date_from=${df}&date_to=${dt}&token=${encodeURIComponent(token())}`,'_blank');
+}
+
+// upload
+function toggleUpload(){ document.getElementById('upload-panel').classList.toggle('open'); }
+const dropzone = document.getElementById('dropzone');
+dropzone.addEventListener('dragover', e=>{ e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e=>{ e.preventDefault(); dropzone.classList.remove('dragover'); if(e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]); });
+document.getElementById('fileInput').addEventListener('change', e=>{ if(e.target.files[0]) uploadFile(e.target.files[0]); });
+
+async function uploadFile(file){
+  const status = document.getElementById('upload-status');
+  status.innerHTML = '<span style="color:#38bdf8;">Uploading and processing… this may take a minute for large files.</span>';
+  const fd = new FormData(); fd.append('file', file);
+  try{
+    const res = await fetch(`${API_BASE}/api/kptcl/upload-excel?token=${encodeURIComponent(token())}`,{
+      method:'POST', body:fd,
+      headers:{'Authorization': token()?`Bearer ${token()}`:''},
+    });
+    const data = await res.json();
+    if(data.error){
+      status.innerHTML = `<span class="s-err">Error: ${data.error}</span>`;
+      return;
+    }
+    let html = `<div class="s-ok" style="font-weight:600;">Upload complete — ${data.filename}</div>`;
+    for(const [tbl, info] of Object.entries(data.tables||{})){
+      html += `<div style="margin-top:4px;"><b>${tbl}</b>: parsed ${info.parsed}, inserted ${info.inserted}, skipped ${info.skipped}`;
+      if(info.unresolved_units && info.unresolved_units.length){
+        html += ` <span style="color:#f59e0b">(unresolved units: ${info.unresolved_units.join(', ')})</span>`;
+      }
+      html += `</div>`;
+    }
+    if(data.errors && data.errors.length){
+      html += `<div class="s-err" style="margin-top:6px;">Errors: ${data.errors.join('; ')}</div>`;
+    }
+    status.innerHTML = html;
+    toast('Upload processed!', true);
+    loadTable();
+  }catch(e){
+    status.innerHTML = `<span class="s-err">Network error: ${e.message}</span>`;
+  }
+}
+
+// init
+(async function init(){
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+  const yd = yesterday.toISOString().slice(0,10);
+  document.getElementById('date-from').value = yd;
+  document.getElementById('date-to').value = yd;
+  try{
+    const res = await fetch(`${API_BASE}/api/kptcl/block-data/dates?token=${encodeURIComponent(token())}`);
+    const d = await res.json();
+    if(d.dates && d.dates.length){
+      document.getElementById('date-to').value = d.dates[0];          // latest
+      document.getElementById('date-from').value = d.dates[0];        // same day by default
+    }
+  }catch(e){}
+  loadTable();
+})();
+</script>
+</body>
+</html>

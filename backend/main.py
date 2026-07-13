@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse, Response
@@ -109,22 +109,29 @@ def get_nrmse_daily(date: str = Query(..., description="YYYY-MM-DD")):
 
     result = _build_nrmse_response(rows)
 
-    # Override Quenext R16 (intra-day) from the dedicated quenext_nrmse table,
-    # for both solar and wind, by date + energy_type.
+    # Quenext R16 (intra-day) MUST come from quenext_nrmse (solar + wind).
+    # Never fall back to daily_nrmse_values for this cell:
+    #   - row present  -> use its nrmse value
+    #   - row absent    -> show Nil (None)
     try:
         cursor.execute(
             "SELECT energy_type, nrmse FROM quenext_nrmse WHERE `date` = %s",
             (date,),
         )
+        qn = {}
         for r in cursor.fetchall():
             et = (r["energy_type"] or "").strip().lower()
+            qn[et] = float(r["nrmse"]) if r["nrmse"] is not None else None
+
+        for et in ("solar", "wind"):
             if et not in result:
                 result[et] = {}
             qkey = next((k for k in result[et].keys() if k.lower() == "quenext"), "Quenext")
             result[et].setdefault(qkey, {})
-            result[et][qkey]["R16"] = float(r["nrmse"]) if r["nrmse"] is not None else None
+            # authoritative: value if the table has a row, else None (Nil)
+            result[et][qkey]["R16"] = qn.get(et, None)
     except Exception as e:
-        print(f"quenext_nrmse override skipped: {e}")
+        print(f"quenext_nrmse override error: {e}")
 
     cursor.close()
     conn.close()
@@ -1417,6 +1424,47 @@ def quenext_deposition_week(week_start: str = Query(..., description="Monday of 
         "revisions": revisions,
         "grid": grid,
     }
+# ── SCADA DAILY REPORT (UI page reads scada_report_daily) ────────────────────
+@app.get("/api/scada-report")
+def scada_report(date: str = Query(..., description="Report date YYYY-MM-DD")):
+    """Rows + status counts from scada_report_daily for one date."""
+    try:
+        _dtime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        return JSONResponse({"error": "Invalid date. Use YYYY-MM-DD."}, status_code=400)
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """SELECT uss_id, dss_id, pss_name, energy_type,
+                      wind_capacity_mw, solar_capacity_mw, total_capacity_mw,
+                      visibility_pct, remark, stuck_block_count, stuck_ranges
+               FROM scada_report_daily
+               WHERE report_date = %s
+               ORDER BY (remark = 'OK'), remark, dss_id""",
+            (date,),
+        )
+        rows = cursor.fetchall()
+    except Exception as e:
+        return JSONResponse(
+            {"error": f"Read failed: {e}. Has scada_report_check.py run and created scada_report_daily?"},
+            status_code=500,
+        )
+    finally:
+        cursor.close()
+        conn.close()
+
+    counts = {
+        "total": len(rows),
+        "ok": sum(1 for r in rows if r["remark"] == "OK"),
+        "no_data": sum(1 for r in rows if "No Data" in (r["remark"] or "")),
+        "zero_data": sum(1 for r in rows if r["remark"] == "Zero Data"),
+        "stuck_data": sum(1 for r in rows if r["remark"] == "Stuck Data"),
+    }
+    return {"date": date, "counts": counts, "rows": rows}
+
+
 # =============================================================================
 # ── SCADA DASHBOARD INTEGRATION ──────────────────────────────────────────────
 # =============================================================================
@@ -1887,11 +1935,16 @@ from datetime import timedelta
 # Define allowed tables and the columns we want to expose to the UI
 ALLOWED_KPTCL_TABLES = {
     "backdown_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
-    "ent_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
+    # "ent_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
     "entitlement_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
-    "sch_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
+    # "sch_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
     "unit_master": ["id", "unit_name", "generator", "plant_type", "fuel_type", "total_capacity", "contracted_capacity", "min_technical_limit", "time_between_ramp_up_down", "ramp_rate_mw_per_min", "pool", "must_run", "variable_cost", "variable_cost_formula"],
-    "market_parameter_master": ["id", "parameter_name", "parameter_value", "parameter_text", "valid_from", "valid_to"]
+    "market_parameter_master": ["id", "parameter_name", "parameter_value", "parameter_text", "valid_from", "valid_to"],
+    "plant_block_data": [
+        "id", "timestamp_id", "unit_id", "unit_name", 
+        "urs", "sch", "ent", "backdown", 
+        "entitlement", "schedule", "calculated_dc", "source_file"
+    ]
 }
 
 @app.get("/api/kptcl/{table_name}/all")
@@ -2022,6 +2075,146 @@ def kptcl_generic_insert(table_name: str, data: Dict[str, Any]):
     finally:
         cursor.close()
         conn.close()
+
+# ── KPTCL EXCEL UPLOAD ────────────────────────────────────────────────────────
+@app.post("/api/kptcl/upload-excel")
+async def kptcl_upload_excel(file: UploadFile = File(...)):
+    """Upload an Excel file to populate unit_master, generation_cost_master,
+    and plant_block_data (from 6 wide sheets). Skip-if-exists."""
+    if not file.filename.endswith((".xlsx", ".xls")):
+        return JSONResponse({"error": "Only .xlsx files are accepted."}, status_code=400)
+    content = await file.read()
+    try:
+        from upload_kptcl import process_upload
+        from database import DB_CONFIG
+        summary = process_upload(content, file.filename, DB_CONFIG)
+        return summary
+    except Exception as e:
+        return JSONResponse({"error": f"Upload processing failed: {type(e).__name__}: {e}"}, status_code=500)
+
+
+# ── PLANT BLOCK DATA: view by date (joined with plant_block_key) ─────────────
+@app.get("/api/kptcl/block-data")
+def kptcl_block_data(date: str = Query(None, description="Single date YYYY-MM-DD (backward compat)"),
+                     date_from: str = Query(None, description="Range start YYYY-MM-DD"),
+                     date_to: str = Query(None, description="Range end YYYY-MM-DD"),
+                     limit: int = Query(50000)):
+    """Return plant_block_data rows for a date or date range, joined with plant_block_key."""
+    conn = _kptcl_conn()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        if date_from and date_to:
+            cursor.execute("""
+                SELECT p.id, k.report_date, k.block_no, k.block_time,
+                       p.unit_name, p.urs, p.sch, p.ent, p.backdown,
+                       p.entitlement, p.schedule, p.calculated_dc
+                FROM plant_block_data p
+                JOIN plant_block_key k ON k.block_id = p.timestamp_id
+                WHERE k.report_date BETWEEN %s AND %s
+                ORDER BY k.report_date, k.block_no, p.unit_name
+                LIMIT %s
+            """, (date_from, date_to, limit))
+        else:
+            d = date or date_from or date_to
+            if not d:
+                return JSONResponse({"error": "Provide date or date_from+date_to."}, status_code=400)
+            cursor.execute("""
+                SELECT p.id, k.report_date, k.block_no, k.block_time,
+                       p.unit_name, p.urs, p.sch, p.ent, p.backdown,
+                       p.entitlement, p.schedule, p.calculated_dc
+                FROM plant_block_data p
+                JOIN plant_block_key k ON k.block_id = p.timestamp_id
+                WHERE k.report_date = %s
+                ORDER BY k.block_no, p.unit_name
+                LIMIT %s
+            """, (d, limit))
+        rows = cursor.fetchall()
+        for r in rows:
+            if r.get("report_date"):
+                r["report_date"] = r["report_date"].isoformat()
+            if r.get("block_time"):
+                bt = r["block_time"]
+                total = int(bt.total_seconds()) if hasattr(bt, "total_seconds") else 0
+                r["block_time"] = f"{total//3600:02d}:{(total%3600)//60:02d}"
+            for k in ("urs","sch","ent","backdown","entitlement","schedule","calculated_dc"):
+                if r.get(k) is not None and not isinstance(r[k], (int, float)):
+                    r[k] = float(r[k])
+        return {"status": "success", "count": len(rows), "rows": rows}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.get("/api/kptcl/block-data/dates")
+def kptcl_block_data_dates():
+    """List available report dates in plant_block_key."""
+    conn = _kptcl_conn()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT DISTINCT report_date FROM plant_block_key ORDER BY report_date DESC LIMIT 100")
+        dates = [r[0].isoformat() for r in cursor.fetchall()]
+        return {"dates": dates}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.get("/api/kptcl/block-data/download")
+def kptcl_block_data_download(date: str = Query(None),
+                               date_from: str = Query(None),
+                               date_to: str = Query(None)):
+    """Download plant_block_data for a date or date range as CSV."""
+    conn = _kptcl_conn()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        if date_from and date_to:
+            cursor.execute("""
+                SELECT k.report_date, k.block_no, k.block_time,
+                       p.unit_name, p.urs, p.sch, p.ent, p.backdown,
+                       p.entitlement, p.schedule, p.calculated_dc
+                FROM plant_block_data p
+                JOIN plant_block_key k ON k.block_id = p.timestamp_id
+                WHERE k.report_date BETWEEN %s AND %s
+                ORDER BY k.report_date, k.block_no, p.unit_name
+            """, (date_from, date_to))
+            fname = f"block_data_{date_from}_to_{date_to}.csv"
+        else:
+            d = date or date_from or date_to
+            if not d:
+                return JSONResponse({"error": "Provide date or date_from+date_to."}, status_code=400)
+            cursor.execute("""
+                SELECT k.report_date, k.block_no, k.block_time,
+                       p.unit_name, p.urs, p.sch, p.ent, p.backdown,
+                       p.entitlement, p.schedule, p.calculated_dc
+                FROM plant_block_data p
+                JOIN plant_block_key k ON k.block_id = p.timestamp_id
+                WHERE k.report_date = %s
+                ORDER BY k.block_no, p.unit_name
+            """, (d,))
+            fname = f"block_data_{d}.csv"
+        rows = cursor.fetchall()
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+    finally:
+        cursor.close()
+        conn.close()
+
+    import csv, io as _io
+    buf = _io.StringIO()
+    if rows:
+        w = csv.DictWriter(buf, fieldnames=rows[0].keys())
+        w.writeheader()
+        w.writerows(rows)
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={fname}"},
+    )
+
 
 # ── SOLAR / WIND STATIC DETAILS ──────────────────────────────────────────────
 class SolarStaticDetail(BaseModel):

@@ -153,16 +153,15 @@
       <div class="submenu open" id="kptcl-sub">
         <div class="subitem" onclick="window.location.href='kptcl.html'"><i class="ti ti-coin"></i> Gen Cost</div>
         <div class="subitem" onclick="window.location.href='unit_master.html'"><i class="ti ti-building-factory-2"></i> Unit Master</div>
-        <div class="subitem" onclick="window.location.href='sch_data.html'"><i class="ti ti-calendar-time"></i> SCH Data</div>
-        <div class="subitem" onclick="window.location.href='ent_data.html'"><i class="ti ti-file-certificate"></i> ENT Data</div>
-        <div class="subitem" onclick="window.location.href='entitlement_data.html'"><i class="ti ti-certificate"></i> Entitlement Data</div>
-        <div class="subitem" onclick="window.location.href='backdown_data.html'"><i class="ti ti-arrow-bar-down"></i> Backdown Data</div>
+        <div class="subitem" onclick="window.location.href='block_data.html'"><i class="ti ti-grid-dots"></i> Upload Data</div>
+        <div class="subitem" onclick="window.location.href='plant_block_data.html'"><i class="ti ti-database-export"></i> Plant Block Data</div>
         <div class="subitem" onclick="window.location.href='market_parameter_master.html'"><i class="ti ti-settings"></i> Market Parameters</div>
       </div>    
         <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)"><i class="ti ti-file-analytics"></i> Reports<i class="ti ti-chevron-down" style="margin-left:auto;font-size:12px;"></i></div>
       <div class="submenu" id="reports-sub">
         <div class="subitem" onclick="window.location.href='scada_missing.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
         <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+        <div class="subitem" onclick="window.location.href='scada_report.html'"><i class="ti ti-report-analytics"></i> SCADA Report</div>
         <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
         <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
       </div>
@@ -193,6 +192,14 @@
           <button data-e="SOLAR" class="on">Solar</button>
           <button data-e="WIND">Wind</button>
         </div>
+      </div>
+      <div class="ctl">
+        <label>Company</label>
+        <select id="sel-company" class="dark-input" onchange="applyCompanyFilter()">
+          <option value="ALL">All Companies</option>
+          <option value="ISPL">ISPL</option>
+          <option value="Quenext">QueNext</option>
+        </select>
       </div>
       <button class="btn-export" onclick="exportCsv()"><i class="ti ti-download"></i> Export CSV</button>
     </div>
@@ -236,12 +243,12 @@
     </div>
     <div class="pies" id="pies"></div>
 
-    <div class="tbl-card">
+    <div class="tbl-card" id="card-ISPL">
       <div class="tbl-hd"><span class="dot" style="background:#38bdf8;"></span> ISPL — Daily Bands</div>
       <div class="tbl-scroll"><div id="ispl-table" class="loading">Loading…</div></div>
     </div>
 
-    <div class="tbl-card">
+    <div class="tbl-card" id="card-Quenext">
       <div class="tbl-hd"><span class="dot" style="background:#22c55e;"></span> Quenext — Daily Bands</div>
       <div class="tbl-scroll"><div id="quenext-table" class="loading">Loading…</div></div>
     </div>
@@ -306,9 +313,11 @@ async function load(){
   try{
     const res = await fetch(`${API_BASE}/api/nrmse/monitor?year=${p.year}&month=${p.month}&energy_type=${p.energy_type}`);
     const data = await res.json();
+    _lastData = data;
     renderPies(data);
     renderTable('ispl-table', data.companies.ISPL);
     renderTable('quenext-table', data.companies.Quenext);
+    applyCompanyFilter();
   }catch(err){
     document.getElementById('ispl-table').textContent = 'Error connecting to server.';
     document.getElementById('quenext-table').textContent = 'Error connecting to server.';
@@ -316,12 +325,25 @@ async function load(){
   }
 }
 
+// Show only the selected company's pies + table (or both when All Companies).
+let _lastData = null;
+function applyCompanyFilter(){
+  const comp = document.getElementById('sel-company').value;
+  const cardI = document.getElementById('card-ISPL');
+  const cardQ = document.getElementById('card-Quenext');
+  if(cardI) cardI.style.display = (comp === 'ALL' || comp === 'ISPL')    ? '' : 'none';
+  if(cardQ) cardQ.style.display = (comp === 'ALL' || comp === 'Quenext') ? '' : 'none';
+  if(_lastData) renderPies(_lastData);   // re-render pies to match filter
+}
+
 function renderPies(data){
   const container = document.getElementById('pies');
-  const specs = [
+  const comp = document.getElementById('sel-company').value;
+  let specs = [
     {id:'ISPL', rev:'R16'}, {id:'ISPL', rev:'R02'},
     {id:'Quenext', rev:'R16'}, {id:'Quenext', rev:'R02'}
   ];
+  if(comp !== 'ALL') specs = specs.filter(s => s.id === comp);
   container.innerHTML = specs.map(s=>{
     const key = `${s.id}-${s.rev}`;
     return `<div class="pie-card">

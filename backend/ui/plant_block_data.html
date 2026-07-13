@@ -4,7 +4,7 @@
 <script src="auth.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SCH Data - RE Forecast Engine</title>
+<title>Plant Block Data - RE Forecast Engine</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <style>
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -34,6 +34,8 @@
   .inp:focus{border-color:#38bdf8;}
   .btn{background:#0ea5e9;color:#fff;border:none;padding:8px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
   .btn:hover{background:#0284c7;}
+  .btn-green{background:#10b981;}
+  .btn-green:hover{background:#059669;}
   .btn-ghost{background:transparent;color:#94a3b8;border:1px solid #2a2d36;}
   .btn-ghost:hover{color:#38bdf8;border-color:#38bdf8;}
 
@@ -80,12 +82,9 @@
       <div class="submenu open" id="kptcl-sub">
         <div class="subitem" onclick="window.location.href='kptcl.html'"><i class="ti ti-coin"></i> Gen Cost</div>
         <div class="subitem" onclick="window.location.href='unit_master.html'"><i class="ti ti-building-factory-2"></i> Unit Master</div>
-        <div class="subitem active" onclick="window.location.href='sch_data.html'"><i class="ti ti-calendar-time"></i> SCH Data</div>
-        <div class="subitem" onclick="window.location.href='ent_data.html'"><i class="ti ti-file-certificate"></i> ENT Data</div>
-        <div class="subitem" onclick="window.location.href='entitlement_data.html'"><i class="ti ti-certificate"></i> Entitlement Data</div>
-        <div class="subitem" onclick="window.location.href='backdown_data.html'"><i class="ti ti-arrow-bar-down"></i> Backdown Data</div>
+        <div class="subitem" onclick="window.location.href='block_data.html'"><i class="ti ti-grid-dots"></i> Upload Data</div>
         <div class="subitem" onclick="window.location.href='market_parameter_master.html'"><i class="ti ti-settings"></i> Market Parameters</div>
-
+        <div class="subitem active" onclick="window.location.href='plant_block_data.html'"><i class="ti ti-database-export"></i> Plant Block Data</div>
       </div>
 
       <div class="nav-item" id="reports-toggle" onclick="toggleReports(event)">
@@ -94,6 +93,7 @@
       <div class="submenu" id="reports-sub">
         <div class="subitem" onclick="window.location.href='scada_missing.html'"><i class="ti ti-layout-dashboard"></i> SCADA Missing Data</div>
         <div class="subitem" onclick="window.location.href='reports.html'"><i class="ti ti-table-options"></i> SCADA</div>
+        <div class="subitem" onclick="window.location.href='scada_report.html'"><i class="ti ti-report-analytics"></i> SCADA Report</div>
         <div class="subitem" onclick="window.location.href='nrmse_monitor.html'"><i class="ti ti-chart-pie"></i> NRMSE Monitor</div>
         <div class="subitem" onclick="window.location.href='daily_data_delivery.html'"><i class="ti ti-mail-check"></i> Daily Data Delivery</div>
       </div>
@@ -105,11 +105,12 @@
   <div class="main">
     <div class="head">
       <div>
-        <div class="ptitle">SCH Data</div>
-        <div class="psub">Latest 1500 records from <b>power_market_db.sch_data</b>. <span id="count" style="color:#6b7280;"></span></div>
+        <div class="ptitle">Plant Block Data</div>
+        <div class="psub">All rows from <b>power_market_db.plant_block_data</b>. <span id="count" style="color:#6b7280;"></span></div>
       </div>
       <div class="tools">
-        <input class="inp" id="search" placeholder="Filter (unit / pool…)" oninput="renderRows()">
+        <input class="inp" id="search" placeholder="Filter (unit name…)" oninput="renderRows()">
+        <button class="btn btn-green" onclick="downloadCSV()"><i class="ti ti-download"></i> Download CSV</button>
         <button class="btn" onclick="openAddRow()"><i class="ti ti-plus"></i> Add Row</button>
         <button class="btn" onclick="loadData()"><i class="ti ti-refresh"></i> Reload</button>
       </div>
@@ -127,24 +128,25 @@
 
 <script>
 const API_BASE = "http://127.0.0.1:8000";   
-const TARGET_TABLE = "sch_data"; 
+const TARGET_TABLE = "plant_block_data"; 
 
 function toggleReports(e){ if(e) e.stopPropagation(); var s=document.getElementById('reports-sub'); if(s) s.classList.toggle('open'); }
 function toggleKptcl(e){ if(e) e.stopPropagation(); var s=document.getElementById('kptcl-sub'); if(s) s.classList.toggle('open'); } 
 
+// Columns matched to plant_block_data schema
 const COLS = [
   {k:'id', label:'ID', edit:false},
-  {k:'report_date', label:'Report Date', edit:true, type:'date'},
-  {k:'block_no', label:'Block No', edit:true, type:'number'},
-  {k:'block_time', label:'Block Time', edit:true, type:'time'},
-  {k:'si_no', label:'SI No', edit:true, type:'number'},
+  {k:'timestamp_id', label:'Timestamp ID', edit:true, type:'number'},
+  {k:'unit_id', label:'Unit ID', edit:true, type:'number'},
   {k:'unit_name', label:'Unit Name', edit:true, type:'text'},
-  {k:'plant_type', label:'Plant Type', edit:true, type:'text'},
-  {k:'variable_cost', label:'Variable Cost', edit:true, type:'number'},
-  {k:'minimum_limit', label:'Minimum Limit', edit:true, type:'number'},
-  {k:'must_run', label:'Must Run', edit:true, type:'text'},
-  {k:'pool', label:'Pool', edit:true, type:'text'},
-  {k:'block_value', label:'Block Value', edit:true, type:'number'}
+  {k:'urs', label:'URS', edit:true, type:'number'},
+  {k:'sch', label:'SCH', edit:true, type:'number'},
+  {k:'ent', label:'ENT', edit:true, type:'number'},
+  {k:'backdown', label:'Backdown', edit:true, type:'number'},
+  {k:'entitlement', label:'Entitlement', edit:true, type:'number'},
+  {k:'schedule', label:'Schedule', edit:true, type:'number'},
+  {k:'calculated_dc', label:'Calculated DC', edit:true, type:'number'},
+  {k:'source_file', label:'Source File', edit:true, type:'text'}
 ];
 
 let DATA = [];
@@ -177,11 +179,13 @@ function cellVal(v){ return (v===null||v===undefined) ? '' : v; }
 
 function renderRows(){
   const q = (document.getElementById('search').value||'').toLowerCase();
+  
   const rows = DATA.filter(r=>{
     if(!q) return true;
-    return [r.unit_name, r.plant_type, r.pool, r.report_date]
+    return [r.unit_name, r.source_file, r.timestamp_id]
       .some(x => (x||'').toString().toLowerCase().includes(q));
   });
+  
   if(!rows.length){ document.getElementById('tbody').innerHTML='<tr><td class="empty">No rows.</td></tr>'; return; }
 
   document.getElementById('tbody').innerHTML = rows.map(r=>{
@@ -192,7 +196,6 @@ function renderRows(){
         const t = c.type==='number'?'number':(c.type==='date'?'date':(c.type==='time'?'time':'text'));
         return `<td><input class="cell-input" data-k="${c.k}" type="${t}" ${c.type==='number'?'step="any"':''} value="${val}"></td>`;
       }
-      if(c.k==='plant_type' && val) return `<td><span class="badge">${val}</span></td>`;
       return `<td>${val}</td>`;
     }).join('');
     
@@ -204,6 +207,48 @@ function renderRows(){
       : `<td class="act"><button class="ibtn ibtn-edit" onclick="startEdit(${r.id})"><i class="ti ti-edit"></i> Edit</button></td>`;
     return `<tr data-id="${r.id}">${cells}${action}</tr>`;
   }).join('');
+}
+
+function downloadCSV() {
+  if (!DATA || !DATA.length) {
+    toast('No data available to download.', false);
+    return;
+  }
+
+  const q = (document.getElementById('search').value || '').toLowerCase();
+  const rowsToDownload = DATA.filter(r => {
+    if(!q) return true;
+    return [r.unit_name, r.source_file, r.timestamp_id]
+      .some(x => (x||'').toString().toLowerCase().includes(q));
+  });
+
+  if (!rowsToDownload.length) {
+    toast('No matching data to download.', false);
+    return;
+  }
+
+  const headers = COLS.map(c => c.label).join(',');
+
+  const csvRows = rowsToDownload.map(r => {
+    return COLS.map(c => {
+      let val = r[c.k] === null || r[c.k] === undefined ? '' : r[c.k];
+      let valStr = val.toString();
+      if (valStr.includes(',') || valStr.includes('"') || valStr.includes('\n')) {
+        valStr = `"${valStr.replace(/"/g, '""')}"`;
+      }
+      return valStr;
+    }).join(',');
+  });
+
+  const csvContent = [headers, ...csvRows].join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", `plant_block_data_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 function startEdit(id){ editingId = id; renderRows(); }
