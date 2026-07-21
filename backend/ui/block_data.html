@@ -44,16 +44,27 @@
   .mtab:hover{color:#cbd5e1;border-color:#475569;}
   .mtab.active{color:#38bdf8;background:#1a2535;border-color:#38bdf8;}
 
-  .scroll{overflow:auto;border:1px solid #2a2d36;border-radius:10px;background:#111318;max-height:calc(100vh - 260px);}
-  table{border-collapse:collapse;font-size:10px;}
-  th,td{border:1px solid #1a1d25;padding:4px 7px;text-align:right;white-space:nowrap;}
-  thead th{background:#161a22;color:#94a3b8;text-transform:uppercase;letter-spacing:.03em;font-size:8px;position:sticky;top:0;z-index:2;}
-  th.corner{text-align:left;z-index:3;left:0;position:sticky;min-width:70px;}
-  td.blk{text-align:center;font-weight:600;color:#e2e8f0;background:#111318;position:sticky;left:0;z-index:1;min-width:70px;}
-  td{color:#cbd5e1;}
-  td.zero{color:#2a2d36;}
-  tr:hover td{background:#13161e;}
-  .empty{color:#6b7280;font-size:13px;padding:40px;text-align:center;}
+  .scroll{overflow:auto;border:1px solid #2a2d36;border-radius:6px;max-height:calc(100vh - 260px);background:#0d0f14;}
+  table{border-collapse:collapse;font-size:11px;width:max-content;min-width:100%;font-family:Calibri,'Segoe UI',sans-serif;}
+  th,td{border:1px solid #2a2d36;padding:3px 8px;white-space:nowrap;text-align:right;color:#e2e8f0;}
+  thead th{background:#111318;color:#94a3b8;font-size:10px;position:sticky;top:0;z-index:2;}
+  td{font-size:11px;}
+  tr:hover td{background:#1a2535;}
+  .empty{color:#6b7280;font-size:13px;padding:40px;text-align:center;background:#0d0f14;}
+
+  /* metadata rows (rows 1-5): dark gray background */
+  .meta-row td{background:#111318;border:1px solid #2a2d36;}
+  .meta-label{color:#94a3b8;font-size:10px;font-weight:600;text-align:left !important;position:sticky;left:0;z-index:1;background:#111318;min-width:90px;}
+  .meta-val{color:#cbd5e1;font-size:10px;text-align:center;}
+
+  /* unit-name header row (row 6): dark blue like Excel */
+  .unit-header td{background:#1e3a8a !important;border:1px solid #1e40af;}
+  .uh{color:#fff !important;font-weight:700 !important;font-size:10px;text-align:center !important;white-space:nowrap;letter-spacing:.02em;}
+  .uh:nth-child(1),.uh:nth-child(2){text-align:left !important;position:sticky;left:0;z-index:2;background:#1e3a8a;}
+
+  /* data cells */
+  td.blk{text-align:center;font-weight:600;color:#e2e8f0;background:#111318;position:sticky;left:0;z-index:1;min-width:80px;border-right:2px solid #38bdf8;}
+  td.zero{color:#475569;}
 
   .upload-card{background:#111318;border:0.5px solid #2a2d36;border-radius:10px;padding:16px;margin-bottom:16px;display:none;}
   .upload-card.open{display:block;}
@@ -115,7 +126,7 @@
         <div class="fld"><label>From</label><input class="inp" type="date" id="date-from"></div>
         <div class="fld"><label>To</label><input class="inp" type="date" id="date-to"></div>
         <button class="btn" onclick="loadTable()"><i class="ti ti-refresh"></i> Load</button>
-        <button class="btn btn-ghost" onclick="downloadCsv()"><i class="ti ti-download"></i> Download</button>
+        <button class="btn btn-ghost" onclick="downloadCsv()"><i class="ti ti-download"></i> Download Excel</button>
         <button class="btn btn-green" onclick="toggleUpload()"><i class="ti ti-upload"></i> Upload Excel</button>
       </div>
     </div>
@@ -153,15 +164,21 @@ function toggleKptcl(e){ if(e) e.stopPropagation(); document.getElementById('kpt
 function token(){ return sessionStorage.getItem('auth_token') || localStorage.getItem('token') || ''; }
 function toast(msg,ok=true){ const t=document.getElementById('toast'); t.textContent=msg; t.className=ok?'ok':'bad'; t.style.display='block'; setTimeout(()=>t.style.display='none',3000); }
 
+// These keys now perfectly match what the backend exports after the LEFT JOIN
 const METRICS = [
-  {key:'urs',          label:'URS'},
-  {key:'sch',          label:'SCH'},
-  {key:'ent',          label:'ENT'},
-  {key:'backdown',     label:'Backdown'},
-  {key:'entitlement',  label:'Entitlement'},
-  {key:'schedule',     label:'Schedule'},
-  {key:'calculated_dc',label:'Calculated-DC'},
+  {key:'urs',                       label:'URS'},
+  {key:'sch',                       label:'SCH'},
+  {key:'ent',                       label:'ENT'},
+  {key:'backdown',                  label:'Backdown'},
+  {key:'entitlement',               label:'Entitlement'},
+  {key:'schedule',                  label:'Schedule'},
+  {key:'calculated_dc',             label:'Calculated-DC'},
+  {key:'must_run_value',            label:'MustRun'},
+  {key:'minimum_capacity',          label:'Minimum_Capacity'},
+  {key:'capacity_over_min',         label:'CapacityOverMin'},
+  {key:'capacity_over_min_act_sch', label:'CapOverMinActSch'},
 ];
+
 let activeMetric = 'sch';
 let RAW = [];  // raw long-format rows from API
 let UNITS = []; // sorted unit names
@@ -177,6 +194,8 @@ function switchMetric(k){
   renderWide();
 }
 
+let UMETA = {};  // unit_name -> {plant_type, variable_cost, must_run, minimum_limit, pool}
+
 async function loadTable(){
   const df = document.getElementById('date-from').value;
   const dt = document.getElementById('date-to').value;
@@ -188,6 +207,7 @@ async function loadTable(){
     const data = await res.json();
     if(data.error){ document.getElementById('tbody').innerHTML=`<tr><td class="empty" colspan="3">${data.error}</td></tr>`; return; }
     RAW = data.rows || [];
+    UMETA = data.unit_meta || {};
     const unitSet = new Set(); RAW.forEach(r => unitSet.add(r.unit_name));
     UNITS = [...unitSet].sort();
     const dateSet = new Set(); RAW.forEach(r => dateSet.add(r.report_date));
@@ -202,12 +222,40 @@ function renderWide(){
     document.getElementById('tbody').innerHTML = '<tr><td class="empty" colspan="3">No data.</td></tr>';
     return;
   }
-  // build header: Date | Block | Time | Unit1 | Unit2 | ...
-  document.getElementById('thead').innerHTML =
-    '<th class="corner">Date</th><th class="corner">Block</th><th class="corner">Time</th>' +
-    UNITS.map(u => `<th title="${u}">${u.length > 12 ? u.slice(0,11)+'…' : u}</th>`).join('');
 
-  // pivot: group by (report_date, block_no) -> { time, units: {name: val} }
+  // Everything renders as body rows to match the Excel look.
+  // thead is just a single invisible anchor for sticky scroll.
+  document.getElementById('thead').innerHTML = '';
+
+  const metaRows = [
+    {key:'plant_type',    label:'Plant_Type'},
+    {key:'variable_cost', label:'Variable_cost'},
+    {key:'must_run',      label:'Must Run'},
+    {key:'minimum_limit', label:'Minimum_limit'},
+    {key:'pool',          label:'pool'},
+  ];
+
+  let html = '';
+
+  // Rows 1-5: metadata (label in col B, values across units)
+  metaRows.forEach(mk => {
+    html += '<tr class="meta-row">';
+    html += `<td class="meta-label"></td>`;
+    html += `<td class="meta-label">${mk.label}</td>`;
+    html += UNITS.map(u => {
+      const m = UMETA[u] || {};
+      return `<td class="meta-val">${m[mk.key] ?? ''}</td>`;
+    }).join('');
+    html += '</tr>';
+  });
+
+  // Row 6: unit-name header (blue highlighted, like Excel row 6)
+  html += '<tr class="unit-header">';
+  html += '<td class="uh">Date</td><td class="uh">Block_no</td>';
+  html += UNITS.map(u => `<td class="uh" title="${u}">${u}</td>`).join('');
+  html += '</tr>';
+
+  // Row 7+: data rows
   const blocks = {};
   RAW.forEach(r => {
     const key = `${r.report_date}|${r.block_no}`;
@@ -220,17 +268,21 @@ function renderWide(){
     return da < db ? -1 : da > db ? 1 : Number(ba) - Number(bb);
   });
 
-  document.getElementById('tbody').innerHTML = sortedKeys.map(key => {
+  sortedKeys.forEach(key => {
     const b = blocks[key];
-    const cells = UNITS.map(u => {
+    html += '<tr>';
+    html += `<td class="blk">${b.date}</td><td class="blk">${b.block}</td>`;
+    html += UNITS.map(u => {
       const v = b.units[u];
       if(v === null || v === undefined) return '<td class="zero">–</td>';
       const n = Number(v);
       if(n === 0) return '<td class="zero">0</td>';
       return `<td>${n.toFixed(2)}</td>`;
     }).join('');
-    return `<tr><td class="blk">${b.date}</td><td class="blk">${b.block}</td><td class="blk">${b.time}</td>${cells}</tr>`;
-  }).join('');
+    html += '</tr>';
+  });
+
+  document.getElementById('tbody').innerHTML = html;
 }
 
 // download

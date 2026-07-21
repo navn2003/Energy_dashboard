@@ -1,18 +1,11 @@
 """
 upload_kptcl.py — Parse the KPTCL Excel file and load into power_market_db.
 
-Handles 3 target areas (phase 1):
-  1. `unitmaster`  sheet  → unit_master table  (simple rows)
-  2. `cost`        sheet  → generation_cost_master table (simple rows)
-  3. 6 wide sheets (URS, SCH, ENT, Backdown, Entitlement, Calculated-DC)
-     → merged into plant_block_data (one row per timestamp_id + unit)
-
-ID resolution:
-  - unit_name → unit_id   via unit_master
-  - (date, block_no) → timestamp_id   via plant_block_key  (created if missing)
-
-Skip-if-exists: rows already present are not re-inserted.
-schedule column is STORED GENERATED — never written.
+Handles target areas:
+  1. `unitmaster`  sheet  → unit_master table
+  2. `cost`        sheet  → generation_cost_master table
+  3. 6 wide sheets (URS, SCH, ENT, Backdown, Entitlement, Calculated-DC) → plant_block_data
+  4. 4 calc sheets (MustRun, Minimum_Capacity, etc) → calculated_values
 """
 import hashlib
 from datetime import datetime, date, time, timedelta
@@ -77,14 +70,12 @@ def _row_hash(fields: dict) -> str:
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
 
 def _find_header_row(ws, marker="date"):
-    """Find the row index (1-based) where col A (stripped, lowered) == marker."""
     for i, row in enumerate(ws.iter_rows(max_col=2, values_only=True), 1):
         if row[0] is not None and str(row[0]).strip().lower() == marker:
             return i
     return None
 
 def _block_time(block_no):
-    """block_no 1 → 00:00, 2 → 00:15, ... 96 → 23:45"""
     mins = (block_no - 1) * 15
     return time(mins // 60, mins % 60)
 
@@ -96,8 +87,7 @@ def _parse_unitmaster(wb):
     rows = []
     for r in ws.iter_rows(min_row=2, values_only=True):
         un = _str(r[0])
-        if not un:
-            continue
+        if not un: continue
         rows.append({
             "unit_name": un,
             "generator": _str(r[1]),
@@ -133,10 +123,9 @@ def _load_unitmaster(conn, rows, source_file):
                  r["time_between_ramp_up_down"], r["ramp_rate_mw_per_min"],
                  r["pool"], r["must_run"], r["variable_cost"], rh, source_file)
             )
-            if cur.rowcount == 1:
-                inserted += 1
+            if cur.rowcount == 1: inserted += 1
         except pymysql.err.IntegrityError:
-            pass  # skip duplicate
+            pass 
     conn.commit()
     cur.close()
     return inserted
@@ -149,27 +138,14 @@ def _parse_cost(wb):
     rows = []
     for r in ws.iter_rows(min_row=2, values_only=True):
         un = _str(r[0])
-        if not un:
-            continue
+        if not un: continue
         rows.append({
-            "unit_name": un,
-            "generator": _str(r[1]),
-            "station_name": _str(r[2]),
-            "acronym": _str(r[3]),
-            "contracted_capacity": _num(r[4]),
-            "valid_from": _date(r[5]),
-            "valid_to": _date(r[6]),
-            "fixed_cost": _num(r[7]),
-            "variable_cost": _num(r[8]),
-            "must_run": _bool(r[9]),
-            "mini_limit": _num(r[10]),
-            "pool": _str(r[11]),
-            "plant_type": _str(r[12]),
-            "entire_shared_ent": _num(r[13]),
-            "entitlement_per_unit": _num(r[14]),
-            "no_of_units": _int(r[15]),
-            "mintech_per_unit": _num(r[16]),
-            "mini_limit_percent": _num(r[17]),
+            "unit_name": un, "generator": _str(r[1]), "station_name": _str(r[2]), "acronym": _str(r[3]),
+            "contracted_capacity": _num(r[4]), "valid_from": _date(r[5]), "valid_to": _date(r[6]),
+            "fixed_cost": _num(r[7]), "variable_cost": _num(r[8]), "must_run": _bool(r[9]),
+            "mini_limit": _num(r[10]), "pool": _str(r[11]), "plant_type": _str(r[12]),
+            "entire_shared_ent": _num(r[13]), "entitlement_per_unit": _num(r[14]),
+            "no_of_units": _int(r[15]), "mintech_per_unit": _num(r[16]), "mini_limit_percent": _num(r[17]),
         })
     return rows
 
@@ -198,8 +174,7 @@ def _load_cost(conn, rows, source_file):
                  r["mintech_per_unit"], r["mini_limit_percent"],
                  rh, source_file)
             )
-            if cur.rowcount == 1:
-                inserted += 1
+            if cur.rowcount == 1: inserted += 1
         except pymysql.err.IntegrityError:
             pass
     conn.commit()
@@ -207,65 +182,15 @@ def _load_cost(conn, rows, source_file):
     return inserted
 
 
-# ======================= PLANT BLOCK DATA (6 wide sheets) =======================
-
-# Sheet name -> column in plant_block_data
-_WIDE_SHEETS = {
-    "URS":           "urs",
-    "SCH":           "sch",
-    "ENT":           "ent",
-    "Backdown":      "backdown",
-    "Entitlement":   "entitlement",
-    "Calculated-DC": "calculated_dc",
-}
-
-def _parse_wide_sheets(wb):
-    """Parse all 6 wide sheets into a merged dict:
-       data[(date, block_no, unit_name)] = {urs:v, sch:v, ent:v, ...}
-    """
-    data = defaultdict(dict)
-    for sheet_name, field in _WIDE_SHEETS.items():
-        if sheet_name not in wb.sheetnames:
-            continue
-        ws = wb[sheet_name]
-        hrow = _find_header_row(ws, "date")
-        if hrow is None:
-            continue
-        # read header row to get unit names (col C onwards)
-        header = list(ws.iter_rows(min_row=hrow, max_row=hrow, values_only=True))[0]
-        units = []
-        for i, h in enumerate(header):
-            if i < 2:
-                continue
-            un = _str(h)
-            if un:
-                units.append((i, un))
-        # read data rows
-        for row in ws.iter_rows(min_row=hrow + 1, values_only=True):
-            d = _date(row[0])
-            b = _int(row[1])
-            if d is None or b is None:
-                continue
-            for col_idx, un in units:
-                if col_idx >= len(row):
-                    continue
-                val = _num(row[col_idx])
-                data[(d, b, un)][field] = val
-    return data
-
+# ======================= SHARED BLOCK KEYS =======================
 
 def _ensure_block_keys(conn, dates_blocks):
-    """Make sure plant_block_key has entries for all (date, block_no) combos.
-    Returns a dict: (date, block_no) -> block_id (= timestamp_id).
-    """
     cur = conn.cursor()
-    # bulk-read existing
     cur.execute("SELECT block_id, report_date, block_no FROM plant_block_key")
     existing = {}
     for r in cur.fetchall():
         existing[(r[1], r[2])] = r[0]
 
-    # find max block_id for new entries
     cur.execute("SELECT COALESCE(MAX(block_id), 999) FROM plant_block_key")
     next_id = cur.fetchone()[0] + 1
 
@@ -286,41 +211,68 @@ def _ensure_block_keys(conn, dates_blocks):
     cur.close()
     return existing
 
-
 def _resolve_unit_ids(conn):
-    """Return dict: unit_name (upper) -> unit_id from unit_master."""
     cur = conn.cursor()
-    cur.execute("SELECT unit_name, unit_id FROM unit_master WHERE unit_id IS NOT NULL")
+    cur.execute("SELECT unit_name, id FROM unit_master")
     mapping = {str(r[0]).strip().upper(): r[1] for r in cur.fetchall()}
     cur.close()
     return mapping
 
 
-def _load_plant_block_data(conn, data, source_file):
-    """Insert merged wide-sheet data into plant_block_data (skip existing)."""
-    cur = conn.cursor()
+# ======================= PLANT BLOCK DATA (6 wide sheets) =======================
 
-    # 1. resolve IDs
+_WIDE_SHEETS = {
+    "URS":           "urs",
+    "SCH":           "sch",
+    "ENT":           "ent",
+    "Backdown":      "backdown",
+    "Entitlement":   "entitlement",
+    "Calculated-DC": "calculated_dc",
+}
+
+def _parse_wide_sheets(wb):
+    data = defaultdict(dict)
+    for sheet_name, field in _WIDE_SHEETS.items():
+        if sheet_name not in wb.sheetnames: continue
+        ws = wb[sheet_name]
+        hrow = _find_header_row(ws, "date")
+        if hrow is None: continue
+        header = list(ws.iter_rows(min_row=hrow, max_row=hrow, values_only=True))[0]
+        units = []
+        for i, h in enumerate(header):
+            if i < 2: continue
+            un = _str(h)
+            if un: units.append((i, un))
+        for row in ws.iter_rows(min_row=hrow + 1, values_only=True):
+            d = _date(row[0])
+            b = _int(row[1])
+            if d is None or b is None: continue
+            for col_idx, un in units:
+                if col_idx >= len(row): continue
+                val = _num(row[col_idx])
+                data[(d, b, un)][field] = val
+    return data
+
+def _load_plant_block_data(conn, data, source_file):
+    cur = conn.cursor()
     dates_blocks = set((d, b) for (d, b, _) in data.keys())
     bk_map = _ensure_block_keys(conn, dates_blocks)
+    
+    # We fetch unit_master ID to insert into plant_block_data
     uid_map = _resolve_unit_ids(conn)
 
-    # 2. load existing (timestamp_id, unit_name) to skip dupes
     cur.execute("SELECT timestamp_id, unit_name FROM plant_block_data")
     existing = set((r[0], r[1]) for r in cur.fetchall())
 
-    # 3. build rows
     to_insert = []
     skipped = 0
     unresolved_units = set()
     for (d, b, un), vals in data.items():
         ts_id = bk_map.get((d, b))
-        if ts_id is None:
-            continue
+        if ts_id is None: continue
         u_id = uid_map.get(un.upper())
         if u_id is None:
             unresolved_units.add(un)
-            u_id = None  # still insert with NULL unit_id, unit_name is present
 
         if (ts_id, un) in existing:
             skipped += 1
@@ -333,7 +285,6 @@ def _load_plant_block_data(conn, data, source_file):
             vals.get("calculated_dc"), source_file,
         ))
 
-    # 4. batch insert
     inserted = 0
     if to_insert:
         cur.executemany(
@@ -350,10 +301,82 @@ def _load_plant_block_data(conn, data, source_file):
     return inserted, skipped, unresolved_units
 
 
+# ======================= CALCULATED VALUES (4 wide sheets) =======================
+
+def _parse_calc_sheets(wb):
+    data = defaultdict(dict)
+    for sheet_name in wb.sheetnames:
+        field = None
+        if sheet_name == "MustRun": field = "must_run_value"
+        elif sheet_name == "Minimum_Capacity": field = "minimum_capacity"
+        elif sheet_name == "CapacityOverMin": field = "capacity_over_min"
+        elif sheet_name.startswith("CapOverMin") or sheet_name.startswith("CapacityOverMinAct"): field = "capacity_over_min_act_sch"
+        
+        if not field: continue
+
+        ws = wb[sheet_name]
+        hrow = _find_header_row(ws, "date")
+        if hrow is None: continue
+        header = list(ws.iter_rows(min_row=hrow, max_row=hrow, values_only=True))[0]
+        units = []
+        for i, h in enumerate(header):
+            if i < 2: continue
+            un = _str(h)
+            if un: units.append((i, un))
+            
+        for row in ws.iter_rows(min_row=hrow + 1, values_only=True):
+            d = _date(row[0])
+            b = _int(row[1])
+            if d is None or b is None: continue
+            for col_idx, un in units:
+                if col_idx >= len(row): continue
+                val = _num(row[col_idx])
+                data[(d, b, un)][field] = val
+    return data
+
+def _load_calculated_values(conn, data):
+    cur = conn.cursor()
+    dates_blocks = set((d, b) for (d, b, _) in data.keys())
+    bk_map = _ensure_block_keys(conn, dates_blocks)
+    uid_map = _resolve_unit_ids(conn)
+
+    to_insert = []
+    for (d, b, un), vals in data.items():
+        ts_id = bk_map.get((d, b))
+        u_id = uid_map.get(un.upper())
+        if ts_id is None or u_id is None:
+            continue
+            
+        to_insert.append((
+            ts_id, u_id,
+            vals.get("must_run_value", 0.0),
+            vals.get("minimum_capacity", 0.0),
+            vals.get("capacity_over_min", 0.0),
+            vals.get("capacity_over_min_act_sch", 0.0)
+        ))
+
+    inserted = 0
+    if to_insert:
+        # Delete existing data for these timestamp_id & unit_id combos to prevent duplicates before inserting
+        for ts_id, u_id, *_ in to_insert:
+            cur.execute("DELETE FROM calculated_values WHERE timestamp_id=%s AND unit_id=%s", (ts_id, u_id))
+        
+        cur.executemany(
+            """INSERT INTO calculated_values
+                 (timestamp_id, unit_id, must_run_value, minimum_capacity, capacity_over_min, capacity_over_min_act_sch)
+               VALUES (%s,%s,%s,%s,%s,%s)
+            """,
+            to_insert
+        )
+        inserted = cur.rowcount
+        conn.commit()
+    cur.close()
+    return inserted
+
+
 # ======================= MAIN ENTRY POINT =======================
 
 def process_upload(file_bytes: bytes, filename: str, db_config: dict):
-    """Process an uploaded Excel file. Returns a summary dict."""
     wb = openpyxl.load_workbook(BytesIO(file_bytes), read_only=True, data_only=True)
     conn = pymysql.connect(**db_config, charset="utf8mb4", autocommit=False)
     conn.cursor().execute("USE power_market_db")
@@ -380,7 +403,7 @@ def process_upload(file_bytes: bytes, filename: str, db_config: dict):
             except Exception as e:
                 errors.append(f"cost: {e}")
 
-        # 3. Plant Block Data (6 wide sheets)
+        # 3. Plant Block Data (6 sheets)
         try:
             data = _parse_wide_sheets(wb)
             if data:
@@ -395,6 +418,21 @@ def process_upload(file_bytes: bytes, filename: str, db_config: dict):
                 summary["tables"]["plant_block_data"] = {"parsed": 0, "inserted": 0, "skipped": 0}
         except Exception as e:
             errors.append(f"plant_block_data: {e}")
+
+        # 4. Calculated Values (4 sheets)
+        try:
+            calc_data = _parse_calc_sheets(wb)
+            if calc_data:
+                ins = _load_calculated_values(conn, calc_data)
+                summary["tables"]["calculated_values"] = {
+                    "parsed": len(calc_data),
+                    "inserted": ins,
+                    "skipped": 0
+                }
+            else:
+                 summary["tables"]["calculated_values"] = {"parsed": 0, "inserted": 0, "skipped": 0}
+        except Exception as e:
+            errors.append(f"calculated_values: {e}")
 
     finally:
         conn.close()

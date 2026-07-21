@@ -28,8 +28,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# ── Authentication (paste into main.py AFTER `app = FastAPI(...)` and any CORS  ──
-#    setup, and BEFORE/around your other routes — anywhere `app` already exists). ─
+# ── Authentication ───────────────────────────────────────────────────────────
 import os, hmac, hashlib, base64, time
 from fastapi import Request
 from pydantic import BaseModel
@@ -79,12 +78,9 @@ def api_login(body: _LoginIn):
 @app.middleware("http")
 async def _auth_guard(request: Request, call_next):
     path = request.url.path
-    # Only guard the API; static pages stay reachable so the login screen can load.
     if path.startswith("/api/") and path not in _PUBLIC_API and request.method != "OPTIONS":
         auth = request.headers.get("Authorization", "")
         token = auth[7:] if auth.startswith("Bearer ") else ""
-        # Fallback: file downloads use window.open / <a href> which can't send an
-        # Authorization header, so allow the token via ?token=... query param too.
         if not token:
             token = request.query_params.get("token", "")
         if not _verify_token(token):
@@ -109,10 +105,6 @@ def get_nrmse_daily(date: str = Query(..., description="YYYY-MM-DD")):
 
     result = _build_nrmse_response(rows)
 
-    # Quenext R16 (intra-day) MUST come from quenext_nrmse (solar + wind).
-    # Never fall back to daily_nrmse_values for this cell:
-    #   - row present  -> use its nrmse value
-    #   - row absent    -> show Nil (None)
     try:
         cursor.execute(
             "SELECT energy_type, nrmse FROM quenext_nrmse WHERE `date` = %s",
@@ -128,7 +120,6 @@ def get_nrmse_daily(date: str = Query(..., description="YYYY-MM-DD")):
                 result[et] = {}
             qkey = next((k for k in result[et].keys() if k.lower() == "quenext"), "Quenext")
             result[et].setdefault(qkey, {})
-            # authoritative: value if the table has a row, else None (Nil)
             result[et][qkey]["R16"] = qn.get(et, None)
     except Exception as e:
         print(f"quenext_nrmse override error: {e}")
@@ -158,11 +149,6 @@ def get_nrmse_monthly(year: int = Query(...), month: int = Query(...)):
 
 
 def _build_monthly_nrmse_response(rows):
-    """
-    Builder used ONLY by the monthly endpoint (monthly_nrmse_values table).
-    ISPL:    R20 → R16,  R02 → DA2
-    Quenext: R-16 → R16, RD2 → DA2
-    """
     MONTHLY_REV_MAP = {
         "R20": "R16",
         "R02": "DA2",
@@ -213,21 +199,11 @@ def get_nrmse_custom(
 
 
 def _build_nrmse_response(rows):
-    """
-    Transforms flat DB rows into a structured dict.
-    ISPL:    R20 → R16,  R02 → DA2
-    Quenext: R-16 → R16, Rd2 → DA2   (adjust these to match your actual DB values)
-    """
     REV_MAP = {
-        # ISPL revision codes
         "R20": "R16",
         "R02": "DA2",
-        # Quenext revision codes
         "R-16": "R16",
         "RD2":  "DA2",
-        # Add any other variants you see in the DB:
-        # "R16":  "R16",
-        # "DA2":  "DA2",
     }
 
     result = {
@@ -254,8 +230,6 @@ def _build_nrmse_response(rows):
 
 # ── NRMSE Monitor (per-day green/yellow/red breakdown) ────────────────────────
 
-# Same revision mapping as _build_nrmse_response, but we expose DA2 under the
-# label "R02" because that is the column header requested in the Monitor UI.
 _MONITOR_REV_MAP = {
     "R20": "R16",   # ISPL intra-day
     "R-16": "R16",  # Quenext intra-day
@@ -265,13 +239,10 @@ _MONITOR_REV_MAP = {
     "R16": "R16",
 }
 
-# Thresholds [green_max, yellow_max] per energy type and logical revision.
-# Matches nrmse_live.html: solar R16=[3,5] DA2=[5,10]; wind R16=[5,10] DA2=[10,15].
 _MONITOR_THRESHOLDS = {
     "SOLAR": {"R16": [3, 5],  "R02": [5, 10]},
     "WIND":  {"R16": [5, 10], "R02": [10, 15]},
 }
-
 
 def _classify(value, lo, hi):
     """green if <=lo, yellow if <=hi, else red. None -> None."""
@@ -283,7 +254,6 @@ def _classify(value, lo, hi):
     if v <= hi:
         return "yellow"
     return "red"
-
 
 def _monitor_payload(year: int, month: int, energy_type: str):
     energy = (energy_type or "SOLAR").upper()
@@ -343,7 +313,6 @@ def _monitor_payload(year: int, month: int, energy_type: str):
         if status:
             companies[comp]["counts"][rev][status] += 1
 
-    # Convert day dicts to ordered lists for easy table rendering.
     for comp in companies:
         day_map = companies[comp]["days"]
         companies[comp]["days"] = [
@@ -436,33 +405,16 @@ def get_chart_daily(
     energy_type: str = Query(None, description="SOLAR or WIND"),
     revision: str = Query("R16", description="Logical revision: R16 (intra-day) or DA2 (day-ahead)"),
 ):
-    """
-    Returns 96-slot (15-min) forecast vs actual data for charting.
-
-    Sources (per request):
-        ISPL forecast    -> dss_forecast_ispl     (per-DSS, summed per slot)
-        Quenext forecast -> dss_forecast_quenext  (per-DSS, summed per slot)
-        Actual (SCADA)   -> dss_forecast_aggregated.total_scada
-
-    The per-vendor tables have no energy_type column, so we JOIN plant_master
-    on dss_id and filter by plant_type (SOLAR/WIND) to honour the energy toggle.
-
-    Revision codes per vendor:
-        Logical R16 (intra-day):  ISPL='R20',  Quenext='R-16'
-        Logical DA2 (day-ahead):  ISPL='R02',  Quenext='RD2'
-    """
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # 1. Initialize the 96 slots perfectly formatted to HH:MM
     slots = _generate_slots()
     result_map = {slot: {"slot": slot, "actual": None, "ISPL": None, "Quenext": None} for slot in slots}
 
-    # 2. Resolve the per-vendor raw revision codes for the requested logical revision.
     rev_logical = (revision or "R16").upper().replace("-", "").replace(" ", "")
     REVISION_MAP = {
-        "R16": {"ISPL": "R20",  "Quenext": "R-16"},   # intra-day
-        "DA2": {"ISPL": "R02",  "Quenext": "RD2"},     # day-ahead
+        "R16": {"ISPL": "R20",  "Quenext": "R-16"},
+        "DA2": {"ISPL": "R02",  "Quenext": "RD2"},
     }
     vendor_codes = REVISION_MAP.get(rev_logical, REVISION_MAP["R16"])
     energy = (energy_type or "").upper()
@@ -470,8 +422,6 @@ def get_chart_daily(
     def _norm(code):
         return code.upper().replace("-", "").replace(" ", "")
 
-    # Per-vendor forecast: SUM(forecast_mw) per slot, filtered to the energy type
-    # via plant_master.plant_type, matched on the vendor's own revision code.
     fc_sql = """
         SELECT DATE_FORMAT(f.timestamp, '%H:%i') AS time_slot,
                SUM(f.forecast_mw) AS mw
@@ -494,18 +444,12 @@ def get_chart_daily(
         except Exception as e:
             print(f"Chart {out_key} query error: {e}")
 
-    # 3a. ISPL forecast  -> dss_forecast_ispl
     _load_vendor("dss_forecast_ispl", vendor_codes["ISPL"], "ISPL")
 
-    # 3b. Quenext forecast
-    #   - R16 (intra-day): read the pre-aggregated composite table
-    #       composite_r05_r20_forecast_96 (own energy_type, already SUMmed per slot,
-    #       filtered to the Quenext company). selected_revision is already chosen.
-    #   - DA2 (day-ahead): keep the original per-DSS dss_forecast_quenext source.
     if rev_logical == "R16":
         comp_sql = """
             SELECT DATE_FORMAT(timestamp, '%H:%i') AS time_slot,
-                   SUM(total_forecast_mw) AS mw
+            SUM(total_forecast_mw) AS mw
             FROM composite_r05_r20_forecast_96
             WHERE DATE(timestamp) = %s
               AND ( %s = '' OR UPPER(energy_type) = %s )
@@ -523,7 +467,6 @@ def get_chart_daily(
     else:
         _load_vendor("dss_forecast_quenext", vendor_codes["Quenext"], "Quenext")
 
-    # 3c. Actual (SCADA) -> dss_forecast_aggregated
     actual_sql = """
         SELECT DATE_FORMAT(timestamp, '%H:%i') AS time_slot,
                MAX(total_scada) AS actual
@@ -546,7 +489,6 @@ def get_chart_daily(
 
     return {"slots": list(result_map.values())}
 
-
 def _generate_slots():
     """Generates 96 time slots: 00:00, 00:15, ... 23:45"""
     slots = []
@@ -555,12 +497,10 @@ def _generate_slots():
             slots.append(f"{h:02d}:{m:02d}")
     return slots
 
-
 # ── Available dates ───────────────────────────────────────────────────────────
 
 @app.get("/api/available-dates")
 def get_available_dates():
-    """Returns distinct dates that have NRMSE data."""
     sql = "SELECT DISTINCT date FROM daily_nrmse_values ORDER BY date DESC LIMIT 90"
     conn = get_connection()
     cursor = conn.cursor()
@@ -570,10 +510,11 @@ def get_available_dates():
     conn.close()
     return {"dates": [str(r[0]) for r in rows]}
 
-
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
 # =============================================================================
 # ── SCADA REPORTS INTEGRATION ────────────────────────────────────────────────
 # =============================================================================
@@ -740,7 +681,6 @@ def monthly_missing_report(month: str = Query(...)):
 
 @app.get("/api/missing-report-pdf")
 def missing_report_pdf(date: str = Query(...)):
-    # Re-using logic to generate PDF
     try:
         conn = get_scada_connection()
         plants = get_all_plants_scada(conn)
@@ -796,28 +736,21 @@ def missing_report_csv(date: str = Query(...)):
         lookup, total_rows = get_scada_lookup(conn, date)
         conn.close()
 
-        # Define CSV headers
         lines = ["DSS_ID,Total Slots,Full Count,Partial Count,Missing Count,Availability %,Missing %,Missing Timestamps"]
-        
         for plant in plants:
             full, partial, missing, missing_times = 0, 0, 0, []
             for ts in time_slots:
                 ts_str = ts.strftime("%Y-%m-%d %H:%M:%S")
                 status = lookup.get((ts_str, plant), "NO DATA")
-                if status == "FULL": 
-                    full += 1
-                elif status == "PARTIAL": 
-                    partial += 1
+                if status == "FULL": full += 1
+                elif status == "PARTIAL": partial += 1
                 else:
                     missing += 1
                     missing_times.append(ts.strftime("%H:%M"))
             
-            # Join timestamps with spaces and wrap the string in quotes to prevent CSV column splitting
             missing_text = " ".join(missing_times)
             avail_pct = round((full / total_slots) * 100, 2)
             miss_pct = round((missing / total_slots) * 100, 2)
-            
-            # Append the row data
             lines.append(f'{plant},{total_slots},{full},{partial},{missing},{avail_pct}%,{miss_pct}%,"{missing_text}"')
 
         csv_text = "\n".join(lines)
@@ -879,7 +812,8 @@ def monthly_missing_report_pdf(month: str = Query(...)):
         return FileResponse(path=pdf_path, filename=pdf_file, media_type="application/pdf")
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
-    # =============================================================================
+    
+# =============================================================================
 # ── ON-DEMAND FORECASTING INTEGRATION ────────────────────────────────────────
 # =============================================================================
 
@@ -887,7 +821,6 @@ BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "forecast_outputs"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-# Ensure this points to the correct combined_forecaster.py in your folder
 FORECASTER_FILE = BASE_DIR / "combined_forecaster.py"
 
 class ForecastRequest(BaseModel):
@@ -900,16 +833,13 @@ class ForecastRequest(BaseModel):
     ensemble: bool = False
 
 def _find_col(df: pd.DataFrame, *candidates: str) -> Optional[str]:
-    """Find a column by case-insensitive match against a list of candidate names."""
     lower = {str(c).strip().lower(): c for c in df.columns}
     for cand in candidates:
         if cand.lower() in lower:
             return lower[cand.lower()]
     return None
 
-
 def _read_plant_sheet(path: Path, sheet: str) -> Optional[pd.DataFrame]:
-    """Read one plant sheet and normalise to columns: timestamp, forecast_mw."""
     df = pd.read_excel(path, sheet_name=sheet)
     ts_col = _find_col(df, "timestamp", "time", "datetime", "block_time")
     mw_col = _find_col(df, "forecast_mw", "forecast", "predicted_mw", "pred_mw", "mw", "value")
@@ -922,7 +852,6 @@ def _read_plant_sheet(path: Path, sheet: str) -> Optional[pd.DataFrame]:
     out = out.dropna(subset=["timestamp"])
     out["forecast_mw"] = out["forecast_mw"].fillna(0.0)
     return out if not out.empty else None
-
 
 def _parse_excel_output(path: Path, requested_plant: str = "ALL") -> Dict[str, Any]:
     if not path.exists():
@@ -940,7 +869,6 @@ def _parse_excel_output(path: Path, requested_plant: str = "ALL") -> Dict[str, A
         response["note"] = "No plant sheets in the Excel — the model produced no forecast rows."
         return response
 
-    # Read every plant sheet we can normalise.
     frames: Dict[str, pd.DataFrame] = {}
     for s in plant_sheets:
         df = _read_plant_sheet(path, s)
@@ -953,14 +881,12 @@ def _parse_excel_output(path: Path, requested_plant: str = "ALL") -> Dict[str, A
 
     req = (requested_plant or "ALL").strip()
     if req.upper() == "ALL" and len(frames) > 1:
-        # Aggregate: total system MW per timestamp across all plants.
         combined = pd.concat(frames.values(), ignore_index=True)
         agg = (combined.groupby("timestamp", as_index=False)["forecast_mw"]
                        .sum().sort_values("timestamp"))
         chart_label = f"All Plants (sum of {len(frames)})"
         chart_df = agg
     else:
-        # Single plant: exact sheet if asked, else the plant with the most generation.
         if req.upper() != "ALL" and req[:31] in frames:
             chart_label = req[:31]
         else:
@@ -980,17 +906,13 @@ def run_forecast(req: ForecastRequest):
     if not FORECASTER_FILE.exists():
         return JSONResponse({"error": "combined_forecaster.py not found in backend folder."}, status_code=500)
 
-    # --- ADD THESE 3 LINES: Automatically fetch weather for the selected date! ---
     weather_script = BASE_DIR / "fetch_openmeteo_weather.py"
     if weather_script.exists():
         subprocess.run(["python", str(weather_script), req.date], cwd=str(BASE_DIR))
-    # -----------------------------------------------------------------------------
 
     output_id = uuid.uuid4().hex[:12]
     output_path = OUTPUT_DIR / f"forecast_{req.date}_{output_id}.xlsx"
     
-    # ... (Keep the rest of your run_forecast code exactly the same) ...
-
     cmd = [
         "python", str(FORECASTER_FILE),
         "--date", req.date,
@@ -1030,28 +952,20 @@ def download_forecast(filename: str):
         return JSONResponse({"error": "File not found"}, status_code=404)
     return FileResponse(path, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename=safe_name)
 
-
 # ── Daily Data Delivery (DSS column-count report over SFTP) ───────────────────
 import dss_delivery
 from datetime import datetime as _dt
 
-
 @app.get("/api/daily-delivery")
 def get_daily_delivery(date: str = Query(None, description="Run day YYYY-MM-DD; defaults to today")):
-    """
-    DSS availability report for a run day.
-    DA2 file = run day + 1, R16 file = run day - 1 (matches parse_mail.py).
-    """
     try:
         base_day = _dt.strptime(date, "%Y-%m-%d").date() if date else date.today()
     except ValueError:
         return JSONResponse({"error": "Invalid date. Use YYYY-MM-DD."}, status_code=400)
     return dss_delivery.build_report(base_day, apply_offset=False)
 
-
 @app.get("/api/daily-delivery/download")
-def download_daily_delivery(file: str = Query(..., description="DSS CSV filename, e.g. 20260605_00_25.csv")):
-    """Streams one DSS CSV (fetched live over SFTP). Filename is whitelist-validated."""
+def download_daily_delivery(file: str = Query(..., description="DSS CSV filename")):
     if not dss_delivery.is_valid_dss_filename(file):
         return JSONResponse({"error": "Invalid filename."}, status_code=400)
     try:
@@ -1070,14 +984,12 @@ def download_daily_delivery(file: str = Query(..., description="DSS CSV filename
 # ── Daily Data Delivery: per-company DB load status ───────────────────────────
 _DB_EXPECTED_DSS = 212
 
-# Raw revision code in each company table -> logical label shown in the UI.
 _DB_REV_MAP = {
     "ISPL":    {"R20": "R16", "R02": "DA2"},
     "QUENEXT": {"R-16": "R16", "Rd2": "DA2"},
 }
-
+    
 def _rev_label(company, raw):
-    """Friendly label for a raw revision code (best-effort; falls back to the code)."""
     raw = str(raw).strip()
     mapped = _DB_REV_MAP.get(company, {}).get(raw)
     if mapped:
@@ -1086,7 +998,6 @@ def _rev_label(company, raw):
     for k, v in _DB_REV_MAP.get(company, {}).items():
         if k.upper().replace("-", "").replace(" ", "") == norm:
             return v
-    # Quenext filename-style codes: 01_00..16_00 = intra-day; 00_00/00_25/00_50/00_75 = day-ahead
     if company == "QUENEXT":
         if raw in ("00_00", "00_25", "00_50", "00_75"):
             return "Day-ahead"
@@ -1094,12 +1005,11 @@ def _rev_label(company, raw):
         if m and 1 <= int(m.group(1)) <= 16:
             return f"R{int(m.group(1))} (Intra-day)"
     return raw
-# Candidate table names (the ISPL table spelling varies in some schemas).
+
 _DB_TABLES = {
     "ISPL":    ["dss_forecast_ispl", "dss_forecast_ispl"],
     "QUENEXT": ["dss_forecast_quenext"],
 }
-
 
 def _resolve_table(cursor, candidates):
     for t in candidates:
@@ -1111,16 +1021,13 @@ def _resolve_table(cursor, candidates):
             continue
     return None
 
-
 def _db_status_for(company, target_date):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         table = _resolve_table(cursor, _DB_TABLES[company])
         if not table:
-            return {"error": f"No DB table found for {company} "
-                             f"(tried: {', '.join(_DB_TABLES[company])}).",
-                    "revisions": []}
+            return {"error": f"No DB table found for {company}.", "revisions": []}
         sql = f"""
             SELECT revision_number,
                    COUNT(DISTINCT dss_id)   AS dss_count,
@@ -1154,7 +1061,6 @@ def _db_status_for(company, target_date):
 
 @app.get("/api/daily-delivery/db")
 def daily_delivery_db(date: str = Query(None, description="forecast_date YYYY-MM-DD; default today")):
-    """DB load status (DSS IDs / 212) for ISPL and Quenext, by revision (R16 & DA2)."""
     try:
         target = _dt.strptime(date, "%Y-%m-%d").date() if date else _dt.now().date()
     except ValueError:
@@ -1168,13 +1074,10 @@ def daily_delivery_db(date: str = Query(None, description="forecast_date YYYY-MM
         },
     }
 
-
-# logical revision -> raw code stored in each company table
 _DB_REV_RAW = {
     "ISPL":    {"R16": "R20",  "DA2": "R02"},
     "QUENEXT": {"R16": "R-16", "DA2": "Rd2"},
 }
-
 
 def _fmt_csv_time(t):
     if t is None:
@@ -1187,21 +1090,13 @@ def _fmt_csv_time(t):
     except Exception:
         return str(t)
 
-
 @app.get("/api/daily-delivery/db-download")
 def daily_delivery_db_download(
     company: str = Query(..., description="ISPL or Quenext"),
     revision: str = Query(..., description="R16 or DA2"),
     date: str = Query(..., description="forecast_date YYYY-MM-DD"),
 ):
-    """
-    Builds a CSV (block_time + one column per DSS, values = forecast_mw) for the
-    given company/revision/date, straight from the DB. Works anywhere the DB is
-    reachable (incl. Replit), unlike the SFTP file download.
-    """
     comp = "QUENEXT" if "QUE" in company.upper() else "ISPL"
-    # Use the revision code exactly as stored (normalised for hyphen/space/case),
-    # so ANY revision can be downloaded (00_25, 13_00, R20, R02, R-16, Rd2, ...).
     raw_norm = revision.upper().replace("-", "").replace(" ", "")
 
     conn = get_connection()
@@ -1246,32 +1141,25 @@ def daily_delivery_db_download(
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
 
-# Relies on already-present imports: get_connection, Query, JSONResponse.
-
 from datetime import datetime as _dtime, timedelta as _td
 
-# (company_label, logical_revision, table, normalized_revision_code)
 _DAYTIME_GROUPS = [
-    ("ISPL",    "R16", "dss_forecast_ispl",    "R20"),  # ISPL intra-day
-    ("ISPL",    "DA2", "dss_forecast_ispl",    "R02"),  # ISPL day-ahead
-    ("Quenext", "R16", "dss_forecast_quenext", "R16"),  # Quenext intra-day (stored 'R-16')
-    ("Quenext", "DA2", "dss_forecast_quenext", "RD2"),  # Quenext day-ahead
+    ("ISPL",    "R16", "dss_forecast_ispl",    "R20"),
+    ("ISPL",    "DA2", "dss_forecast_ispl",    "R02"),
+    ("Quenext", "R16", "dss_forecast_quenext", "R16"),
+    ("Quenext", "DA2", "dss_forecast_quenext", "RD2"),
 ]
 _DAY_START = "05:30:00"
 _DAY_END   = "19:00:00"
 
-
 def _daytime_slot_labels():
-    """15-min slot labels 05:30..19:00 inclusive as 'HH:MM'."""
-    out, cur, end = [], _dtime(2000, 1, 1, 5, 30), _dtime(2000, 1, 1, 19, 0)
+    out, cur, end = _dtime(2000, 1, 1, 5, 30), _dtime(2000, 1, 1, 19, 0)
     while cur <= end:
         out.append(cur.strftime("%H:%M"))
         cur += _td(minutes=15)
     return out
 
-
 def _fmt_block_time(t):
-    """block_time may be timedelta (MySQL TIME) or str -> 'HH:MM'."""
     if t is None:
         return None
     if isinstance(t, str):
@@ -1281,7 +1169,6 @@ def _fmt_block_time(t):
     except AttributeError:
         return str(t)[:5]
     return f"{secs // 3600:02d}:{(secs % 3600) // 60:02d}"
-
 
 def _run_daytime_group(cursor, company, revision, table, rev_code, slots, date):
     sql = f"""
@@ -1313,7 +1200,7 @@ def _run_daytime_group(cursor, company, revision, table, rev_code, slots, date):
         cells = per_dss[dss]
         bad, out_cells = [], {}
         for s in slots:
-            v = cells.get(s, None)                       # missing slot = bad too
+            v = cells.get(s, None)
             out_cells[s] = None if v is None else round(float(v), 3)
             if (v is None) or (float(v) == 0.0):
                 bad.append(s)
@@ -1322,13 +1209,8 @@ def _run_daytime_group(cursor, company, revision, table, rev_code, slots, date):
     group["flagged_count"] = len(group["flagged"])
     return group
 
-
 @app.get("/api/daily-delivery/daytime-check")
 def daily_delivery_daytime_check(date: str = Query(..., description="Forecast date YYYY-MM-DD")):
-    """
-    Flags DSS IDs (ISPL & Quenext, revisions R16 & DA2) with a 0 or NULL
-    forecast_mw in any 15-min slot between 05:30 and 19:00 on the given date.
-    """
     try:
         _dtime.strptime(date, "%Y-%m-%d")
     except ValueError:
@@ -1350,12 +1232,9 @@ def daily_delivery_daytime_check(date: str = Query(..., description="Forecast da
 
     return result
 
-
 # ── QUENEXT SFTP DEPOSITION REPORT (weekly ON/OFF/MISSING) ───────────────────
 @app.get("/api/quenext/deposition-week")
 def quenext_deposition_week(week_start: str = Query(..., description="Monday of the week, YYYY-MM-DD")):
-    """Weekly ON_TIME / OFF_TIME / MISSING per revision, read from
-    quenext_deposition_log (populated by deposition_scan.py on the EC2)."""
     try:
         d = _dtime.strptime(week_start, "%Y-%m-%d").date()
     except ValueError:
@@ -1365,7 +1244,6 @@ def quenext_deposition_week(week_start: str = Query(..., description="Monday of 
     days = [monday + _td(days=i) for i in range(7)]
     day_strs = [dd.isoformat() for dd in days]
 
-    # Expected revision order: day-ahead first, then R-1..R-16.
     expected = ["RD1", "RD2", "RD3", "RD4"] + [f"R-{i}" for i in range(1, 17)]
 
     conn = get_connection()
@@ -1380,7 +1258,6 @@ def quenext_deposition_week(week_start: str = Query(..., description="Monday of 
         found = {}
         for r in cursor.fetchall():
             dt = r["deposit_time"]
-            # deposit_time may come back as timedelta or time
             if dt is not None and not isinstance(dt, str):
                 total = int(dt.total_seconds()) if hasattr(dt, "total_seconds") else (dt.hour*3600+dt.minute*60+dt.second)
                 dt = f"{total//3600:02d}:{(total%3600)//60:02d}:{total%60:02d}"
@@ -1389,8 +1266,7 @@ def quenext_deposition_week(week_start: str = Query(..., description="Monday of 
             }
     except Exception as e:
         return JSONResponse(
-            {"error": f"Read failed: {e}. Has deposition_scan.py run and created "
-                      f"quenext_deposition_log?"},
+            {"error": f"Read failed: {e}. Has deposition_scan.py run?"},
             status_code=500,
         )
     finally:
@@ -1424,10 +1300,10 @@ def quenext_deposition_week(week_start: str = Query(..., description="Monday of 
         "revisions": revisions,
         "grid": grid,
     }
+
 # ── SCADA DAILY REPORT (UI page reads scada_report_daily) ────────────────────
 @app.get("/api/scada-report")
 def scada_report(date: str = Query(..., description="Report date YYYY-MM-DD")):
-    """Rows + status counts from scada_report_daily for one date."""
     try:
         _dtime.strptime(date, "%Y-%m-%d")
     except ValueError:
@@ -1448,7 +1324,7 @@ def scada_report(date: str = Query(..., description="Report date YYYY-MM-DD")):
         rows = cursor.fetchall()
     except Exception as e:
         return JSONResponse(
-            {"error": f"Read failed: {e}. Has scada_report_check.py run and created scada_report_daily?"},
+            {"error": f"Read failed: {e}. Has scada_report_check.py run?"},
             status_code=500,
         )
     finally:
@@ -1777,7 +1653,6 @@ def register_mapping(data: MappingRegistration):
 # ── VIEW + EDIT pss_dss_uss_mapping ──────────────────────────────────────────
 @app.get("/api/mapping/all")
 def mapping_all(report_date: str = Query(None, description="Optional YYYY-MM-DD filter")):
-    """Return all rows of pss_dss_uss_mapping (optionally for one report_date)."""
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -1830,12 +1705,10 @@ class MappingUpdate(BaseModel):
 
 @app.put("/api/mapping/update/{row_id}")
 def mapping_update(row_id: int, data: MappingUpdate):
-    """Update one pss_dss_uss_mapping row by its primary key id."""
     fields = data.dict(exclude_unset=True)
     if not fields:
         return JSONResponse({"error": "No fields to update."}, status_code=400)
 
-    # Auto-recompute total when wind/solar provided but total not explicitly set.
     if "total_capacity_mw" not in fields and ("wind_capacity_mw" in fields or "solar_capacity_mw" in fields):
         fields["total_capacity_mw"] = (fields.get("wind_capacity_mw") or 0.0) + (fields.get("solar_capacity_mw") or 0.0)
 
@@ -1859,8 +1732,6 @@ def mapping_update(row_id: int, data: MappingUpdate):
 
 
 # ── KPTCL: power_market_db.generation_cost_master (separate DB, same server) ──
-# Columns shown/editable: up to mini_limit_percent. The last 3 (formula, source_file,
-# imported_at) are omitted. id is read-only PK.
 _KPTCL_COLS = [
     "id", "unit_name", "generator", "station_name", "acronym",
     "contracted_capacity", "valid_from", "valid_to",
@@ -1870,10 +1741,9 @@ _KPTCL_COLS = [
     "entire_shared_ent", "entitlement_per_unit", "no_of_units",
     "mintech_per_unit", "mini_limit_percent",
 ]
-_KPTCL_EDITABLE = set(_KPTCL_COLS) - {"id"}  # everything except the PK
+_KPTCL_EDITABLE = set(_KPTCL_COLS) - {"id"}  
 
 def _kptcl_conn():
-    """Connection into power_market_db (same MySQL server as energy_monitor)."""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("USE power_market_db")
@@ -1882,7 +1752,6 @@ def _kptcl_conn():
 
 @app.get("/api/kptcl/all")
 def kptcl_all():
-    """Return all rows of generation_cost_master (selected columns only)."""
     cols = ", ".join(f"`{c}`" for c in _KPTCL_COLS)
     conn = _kptcl_conn()
     cursor = conn.cursor(dictionary=True)
@@ -1893,7 +1762,6 @@ def kptcl_all():
             for k in ("valid_from", "valid_to"):
                 if r.get(k) is not None:
                     r[k] = r[k].isoformat()
-            # Decimals -> float for JSON
             for k, v in list(r.items()):
                 if hasattr(v, "is_integer") is False and v.__class__.__name__ == "Decimal":
                     r[k] = float(v)
@@ -1906,7 +1774,6 @@ def kptcl_all():
 
 @app.put("/api/kptcl/update/{row_id}")
 def kptcl_update(row_id: int, data: Dict[str, Any]):
-    """Update one generation_cost_master row by id. Only whitelisted columns."""
     fields = {k: v for k, v in data.items() if k in _KPTCL_EDITABLE}
     if not fields:
         return JSONResponse({"error": "No editable fields to update."}, status_code=400)
@@ -1928,16 +1795,13 @@ def kptcl_update(row_id: int, data: Dict[str, Any]):
     finally:
         cursor.close()
         conn.close()
+
 from datetime import timedelta
 
 # ── GENERIC KPTCL ENDPOINTS FOR NEW TABLES ───────────────────────────────────
-
-# Define allowed tables and the columns we want to expose to the UI
 ALLOWED_KPTCL_TABLES = {
     "backdown_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
-    # "ent_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
     "entitlement_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
-    # "sch_data": ["id", "report_date", "block_no", "block_time", "si_no", "unit_name", "plant_type", "variable_cost", "minimum_limit", "must_run", "pool", "block_value"],
     "unit_master": ["id", "unit_name", "generator", "plant_type", "fuel_type", "total_capacity", "contracted_capacity", "min_technical_limit", "time_between_ramp_up_down", "ramp_rate_mw_per_min", "pool", "must_run", "variable_cost", "variable_cost_formula"],
     "market_parameter_master": ["id", "parameter_name", "parameter_value", "parameter_text", "valid_from", "valid_to"],
     "plant_block_data": [
@@ -1949,7 +1813,6 @@ ALLOWED_KPTCL_TABLES = {
 
 @app.get("/api/kptcl/{table_name}/all")
 def kptcl_generic_all(table_name: str):
-    """Return rows from generic KPTCL tables. Block tables are limited to the latest 1500 rows to prevent browser crashes."""
     if table_name not in ALLOWED_KPTCL_TABLES:
         return JSONResponse({"error": "Invalid table"}, status_code=400)
     
@@ -1957,7 +1820,6 @@ def kptcl_generic_all(table_name: str):
     conn = _kptcl_conn()
     cursor = conn.cursor(dictionary=True)
     try:
-        # Time-series tables grow massive; order by ID desc and limit to latest data
         limit_clause = " ORDER BY id DESC LIMIT 1500" if "data" in table_name else " ORDER BY id DESC"
         
         cursor.execute(f"SELECT {cols} FROM `{table_name}` {limit_clause}")
@@ -1965,11 +1827,9 @@ def kptcl_generic_all(table_name: str):
         
         for r in rows:
             for k, v in list(r.items()):
-                # Format Dates/Times correctly for JSON and HTML inputs
                 if hasattr(v, "isoformat"):
                     r[k] = v.isoformat()
                 elif isinstance(v, timedelta):
-                    # Convert MySQL TIME (timedelta) to HH:MM format
                     secs = int(v.total_seconds())
                     r[k] = f"{secs // 3600:02d}:{(secs % 3600) // 60:02d}"
                 elif hasattr(v, "is_integer") is False and v.__class__.__name__ == "Decimal":
@@ -1982,10 +1842,8 @@ def kptcl_generic_all(table_name: str):
         cursor.close()
         conn.close()
 
-
 @app.put("/api/kptcl/{table_name}/update/{row_id}")
 def kptcl_generic_update(table_name: str, row_id: int, data: Dict[str, Any]):
-    """Update one row in a generic KPTCL table."""
     if table_name not in ALLOWED_KPTCL_TABLES:
         return JSONResponse({"error": "Invalid table"}, status_code=400)
 
@@ -2013,15 +1871,12 @@ def kptcl_generic_update(table_name: str, row_id: int, data: Dict[str, Any]):
         cursor.close()
         conn.close()
 
-
-# Tables that have a NOT-NULL UNIQUE row_hash column that must be filled on insert.
 _KPTCL_HASH_TABLES = {
     "generation_cost_master", "backdown_data", "ent_data",
     "entitlement_data", "sch_data", "unit_master", "market_parameter_master",
 }
 
 def _compute_row_hash(fields: dict) -> str:
-    """Deterministic SHA-256 over the provided column values (sorted by key)."""
     parts = [f"{k}={'' if fields[k] is None else fields[k]}" for k in sorted(fields.keys())]
     joined = "|".join(parts)
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()
@@ -2037,8 +1892,6 @@ def _table_has_column(cursor, table_name, column):
 
 @app.post("/api/kptcl/{table_name}/insert")
 def kptcl_generic_insert(table_name: str, data: Dict[str, Any]):
-    """Insert a new row into a generic KPTCL table (add-row from the UI).
-    Auto-fills row_hash for tables that require it."""
     if table_name not in ALLOWED_KPTCL_TABLES:
         return JSONResponse({"error": "Invalid table"}, status_code=400)
 
@@ -2051,7 +1904,6 @@ def kptcl_generic_insert(table_name: str, data: Dict[str, Any]):
     conn = _kptcl_conn()
     cursor = conn.cursor()
     try:
-        # Fill row_hash if the table has such a column (NOT NULL UNIQUE).
         insert_fields = dict(fields)
         if _table_has_column(cursor, table_name, "row_hash"):
             insert_fields["row_hash"] = _compute_row_hash(fields)
@@ -2079,8 +1931,6 @@ def kptcl_generic_insert(table_name: str, data: Dict[str, Any]):
 # ── KPTCL EXCEL UPLOAD ────────────────────────────────────────────────────────
 @app.post("/api/kptcl/upload-excel")
 async def kptcl_upload_excel(file: UploadFile = File(...)):
-    """Upload an Excel file to populate unit_master, generation_cost_master,
-    and plant_block_data (from 6 wide sheets). Skip-if-exists."""
     if not file.filename.endswith((".xlsx", ".xls")):
         return JSONResponse({"error": "Only .xlsx files are accepted."}, status_code=400)
     content = await file.read()
@@ -2092,14 +1942,13 @@ async def kptcl_upload_excel(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse({"error": f"Upload processing failed: {type(e).__name__}: {e}"}, status_code=500)
 
-
-# ── PLANT BLOCK DATA: view by date (joined with plant_block_key) ─────────────
+# ── PLANT BLOCK DATA: view by date (joined with plant_block_key and calculated_values)
 @app.get("/api/kptcl/block-data")
 def kptcl_block_data(date: str = Query(None, description="Single date YYYY-MM-DD (backward compat)"),
                      date_from: str = Query(None, description="Range start YYYY-MM-DD"),
                      date_to: str = Query(None, description="Range end YYYY-MM-DD"),
                      limit: int = Query(50000)):
-    """Return plant_block_data rows for a date or date range, joined with plant_block_key."""
+    """Return plant_block_data joined with plant_block_key and calculated_values."""
     conn = _kptcl_conn()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -2107,9 +1956,12 @@ def kptcl_block_data(date: str = Query(None, description="Single date YYYY-MM-DD
             cursor.execute("""
                 SELECT p.id, k.report_date, k.block_no, k.block_time,
                        p.unit_name, p.urs, p.sch, p.ent, p.backdown,
-                       p.entitlement, p.schedule, p.calculated_dc
+                       p.entitlement, p.schedule, p.calculated_dc,
+                       cv.must_run_value, cv.minimum_capacity,
+                       cv.capacity_over_min, cv.capacity_over_min_act_sch
                 FROM plant_block_data p
                 JOIN plant_block_key k ON k.block_id = p.timestamp_id
+                LEFT JOIN calculated_values cv ON cv.timestamp_id = p.timestamp_id AND cv.unit_id = p.unit_id
                 WHERE k.report_date BETWEEN %s AND %s
                 ORDER BY k.report_date, k.block_no, p.unit_name
                 LIMIT %s
@@ -2121,9 +1973,12 @@ def kptcl_block_data(date: str = Query(None, description="Single date YYYY-MM-DD
             cursor.execute("""
                 SELECT p.id, k.report_date, k.block_no, k.block_time,
                        p.unit_name, p.urs, p.sch, p.ent, p.backdown,
-                       p.entitlement, p.schedule, p.calculated_dc
+                       p.entitlement, p.schedule, p.calculated_dc,
+                       cv.must_run_value, cv.minimum_capacity,
+                       cv.capacity_over_min, cv.capacity_over_min_act_sch
                 FROM plant_block_data p
                 JOIN plant_block_key k ON k.block_id = p.timestamp_id
+                LEFT JOIN calculated_values cv ON cv.timestamp_id = p.timestamp_id AND cv.unit_id = p.unit_id
                 WHERE k.report_date = %s
                 ORDER BY k.block_no, p.unit_name
                 LIMIT %s
@@ -2136,20 +1991,37 @@ def kptcl_block_data(date: str = Query(None, description="Single date YYYY-MM-DD
                 bt = r["block_time"]
                 total = int(bt.total_seconds()) if hasattr(bt, "total_seconds") else 0
                 r["block_time"] = f"{total//3600:02d}:{(total%3600)//60:02d}"
-            for k in ("urs","sch","ent","backdown","entitlement","schedule","calculated_dc"):
+            
+            # Format the numeric values, including the newly joined ones
+            for k in ("urs","sch","ent","backdown","entitlement","schedule","calculated_dc",
+                      "must_run_value", "minimum_capacity", "capacity_over_min", "capacity_over_min_act_sch"):
                 if r.get(k) is not None and not isinstance(r[k], (int, float)):
                     r[k] = float(r[k])
-        return {"status": "success", "count": len(rows), "rows": rows}
+
+        # fetch unit metadata
+        cursor.execute("""
+            SELECT unit_name, plant_type, variable_cost, must_run, min_technical_limit, pool
+            FROM unit_master
+        """)
+        unit_meta = {}
+        for u in cursor.fetchall():
+            unit_meta[u["unit_name"]] = {
+                "plant_type": u.get("plant_type") or "",
+                "variable_cost": float(u["variable_cost"]) if u.get("variable_cost") is not None else 0,
+                "must_run": "TRUE" if u.get("must_run") else "FALSE",
+                "minimum_limit": float(u["min_technical_limit"]) if u.get("min_technical_limit") is not None else 0,
+                "pool": u.get("pool") or "",
+            }
+
+        return {"status": "success", "count": len(rows), "rows": rows, "unit_meta": unit_meta}
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
     finally:
         cursor.close()
         conn.close()
 
-
 @app.get("/api/kptcl/block-data/dates")
 def kptcl_block_data_dates():
-    """List available report dates in plant_block_key."""
     conn = _kptcl_conn()
     cursor = conn.cursor()
     try:
@@ -2162,12 +2034,11 @@ def kptcl_block_data_dates():
         cursor.close()
         conn.close()
 
-
 @app.get("/api/kptcl/block-data/download")
 def kptcl_block_data_download(date: str = Query(None),
                                date_from: str = Query(None),
                                date_to: str = Query(None)):
-    """Download plant_block_data for a date or date range as CSV."""
+    """Download plant_block_data and calculated_values as a multi-sheet Excel."""
     conn = _kptcl_conn()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -2175,13 +2046,16 @@ def kptcl_block_data_download(date: str = Query(None),
             cursor.execute("""
                 SELECT k.report_date, k.block_no, k.block_time,
                        p.unit_name, p.urs, p.sch, p.ent, p.backdown,
-                       p.entitlement, p.schedule, p.calculated_dc
+                       p.entitlement, p.schedule, p.calculated_dc,
+                       cv.must_run_value, cv.minimum_capacity,
+                       cv.capacity_over_min, cv.capacity_over_min_act_sch
                 FROM plant_block_data p
                 JOIN plant_block_key k ON k.block_id = p.timestamp_id
+                LEFT JOIN calculated_values cv ON cv.timestamp_id = p.timestamp_id AND cv.unit_id = p.unit_id
                 WHERE k.report_date BETWEEN %s AND %s
                 ORDER BY k.report_date, k.block_no, p.unit_name
             """, (date_from, date_to))
-            fname = f"block_data_{date_from}_to_{date_to}.csv"
+            fname = f"block_data_{date_from}_to_{date_to}.xlsx"
         else:
             d = date or date_from or date_to
             if not d:
@@ -2189,13 +2063,16 @@ def kptcl_block_data_download(date: str = Query(None),
             cursor.execute("""
                 SELECT k.report_date, k.block_no, k.block_time,
                        p.unit_name, p.urs, p.sch, p.ent, p.backdown,
-                       p.entitlement, p.schedule, p.calculated_dc
+                       p.entitlement, p.schedule, p.calculated_dc,
+                       cv.must_run_value, cv.minimum_capacity,
+                       cv.capacity_over_min, cv.capacity_over_min_act_sch
                 FROM plant_block_data p
                 JOIN plant_block_key k ON k.block_id = p.timestamp_id
+                LEFT JOIN calculated_values cv ON cv.timestamp_id = p.timestamp_id AND cv.unit_id = p.unit_id
                 WHERE k.report_date = %s
                 ORDER BY k.block_no, p.unit_name
             """, (d,))
-            fname = f"block_data_{d}.csv"
+            fname = f"block_data_{d}.xlsx"
         rows = cursor.fetchall()
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
@@ -2203,15 +2080,93 @@ def kptcl_block_data_download(date: str = Query(None),
         cursor.close()
         conn.close()
 
-    import csv, io as _io
-    buf = _io.StringIO()
-    if rows:
-        w = csv.DictWriter(buf, fieldnames=rows[0].keys())
-        w.writeheader()
-        w.writerows(rows)
+    if not rows:
+        return JSONResponse({"error": "No data for selected dates."}, status_code=404)
+
+    import io as _io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    units = sorted(set(r["unit_name"] for r in rows))
+    pivot = {}
+    for r in rows:
+        key = (str(r["report_date"]), r["block_no"], str(r.get("block_time", "")))
+        if key not in pivot:
+            pivot[key] = {}
+        pivot[key][r["unit_name"]] = r
+    sorted_keys = sorted(pivot.keys(), key=lambda k: (k[0], int(k[1])))
+
+    # Added the 4 calculated fields as new sheets
+    sheets = [
+        ("URS", "urs"), ("SCH", "sch"), ("ENT", "ent"),
+        ("Backdown", "backdown"), ("Entitlement", "entitlement"),
+        ("Schedule", "schedule"), ("Calculated-DC", "calculated_dc"),
+        ("MustRun", "must_run_value"), ("Minimum_Capacity", "minimum_capacity"),
+        ("CapacityOverMin", "capacity_over_min"), ("CapOverMinActSch", "capacity_over_min_act_sch")
+    ]
+
+    conn2 = _kptcl_conn()
+    cur2 = conn2.cursor(dictionary=True)
+    cur2.execute("SELECT unit_name, plant_type, variable_cost, must_run, min_technical_limit, pool FROM unit_master")
+    umeta = {}
+    for u in cur2.fetchall():
+        umeta[u["unit_name"]] = {
+            "Plant_Type": u.get("plant_type") or "",
+            "Variable_cost": float(u["variable_cost"]) if u.get("variable_cost") is not None else 0,
+            "Must Run": "TRUE" if u.get("must_run") else "FALSE",
+            "Minimum_limit": float(u["min_technical_limit"]) if u.get("min_technical_limit") is not None else 0.0,
+            "pool": u.get("pool") or "",
+        }
+    cur2.close()
+    conn2.close()
+
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    header_font = Font(bold=True, color="FFFFFF", size=9)
+    header_fill = PatternFill(start_color="1a2535", end_color="1a2535", fill_type="solid")
+    meta_font = Font(italic=True, color="888888", size=9)
+
+    meta_rows = ["Plant_Type", "Variable_cost", "Must Run", "Minimum_limit", "pool"]
+
+    for sheet_name, field in sheets:
+        ws = wb.create_sheet(title=sheet_name)
+        for ri, mk in enumerate(meta_rows, 1):
+            ws.cell(row=ri, column=1, value="").font = meta_font
+            ws.cell(row=ri, column=2, value=mk).font = meta_font
+            for ui, unit in enumerate(units, 3):
+                val = umeta.get(unit, {}).get(mk, "")
+                ws.cell(row=ri, column=ui, value=val).font = meta_font
+
+        headers = ["Date", "Block_no"] + units
+        for ci, h in enumerate(headers, 1):
+            cell = ws.cell(row=6, column=ci, value=h)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center")
+
+        for ri, key in enumerate(sorted_keys, 7):
+            dt, bno, btime = key
+            ws.cell(row=ri, column=1, value=dt)
+            ws.cell(row=ri, column=2, value=int(bno))
+            for ui, unit in enumerate(units, 3):
+                r = pivot[key].get(unit)
+                val = r.get(field) if r else None
+                if val is not None:
+                    ws.cell(row=ri, column=ui, value=float(val))
+                else:
+                    ws.cell(row=ri, column=ui, value=0)
+
+        ws.column_dimensions["A"].width = 12
+        ws.column_dimensions["B"].width = 8
+
+    buf = _io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
     return Response(
         content=buf.getvalue(),
-        media_type="text/csv",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f"attachment; filename={fname}"},
     )
 
@@ -2300,12 +2255,9 @@ def register_wind_static(data: WindStaticDetail):
     finally:
         cursor.close(); conn.close()
 
-
-# ── Daily Forecast Analysis Dashboard (merged from main(1).py) ───────────────
 from dashboard_api import router as dashboard_router
 app.include_router(dashboard_router)
 
-# ── PSS Billing / Settlement (extracted into settlement_api.py) ──────────────
 from settlement_api import router as settlement_router
 app.include_router(settlement_router)
 
